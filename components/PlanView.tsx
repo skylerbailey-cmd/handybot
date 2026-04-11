@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import ChecklistRow from "./ChecklistRow";
 import DifficultyBadge from "./DifficultyBadge";
 import InteractiveStepper from "./InteractiveStepper";
@@ -10,6 +10,8 @@ interface Props {
   onSetStepCompleted: (stepId: string, completed: boolean) => void;
   onToggleTool: (toolId: string) => void;
   onToggleMaterial: (materialId: string) => void;
+  onRegenerate?: () => void;
+  regenerating?: boolean;
 }
 
 export default function PlanView({
@@ -17,6 +19,8 @@ export default function PlanView({
   onSetStepCompleted,
   onToggleTool,
   onToggleMaterial,
+  onRegenerate,
+  regenerating,
 }: Props) {
   const { plan } = issue;
 
@@ -103,6 +107,28 @@ export default function PlanView({
             onSetStepCompleted={onSetStepCompleted}
           />
         </Section>
+      )}
+
+      {onRegenerate && (
+        <View style={styles.regenSection}>
+          <Text style={styles.regenLabel}>
+            Plan not quite right? Rebuild it from your original photo.
+          </Text>
+          <Pressable
+            onPress={onRegenerate}
+            disabled={regenerating}
+            style={({ pressed }) => [
+              styles.regenBtn,
+              pressed && { opacity: 0.7 },
+              regenerating && { opacity: 0.5 },
+            ]}
+          >
+            <Text style={styles.regenIcon}>↻</Text>
+            <Text style={styles.regenBtnText}>
+              {regenerating ? "Regenerating..." : "Regenerate plan"}
+            </Text>
+          </Pressable>
+        </View>
       )}
 
       <View style={{ height: spacing.xxl }} />
@@ -248,5 +274,40 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     color: "#7c2d12",
+  },
+  regenSection: {
+    marginTop: spacing.xl,
+    paddingTop: spacing.lg,
+    borderTopWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  regenLabel: {
+    fontSize: 12,
+    color: colors.textSubtle,
+    textAlign: "center",
+    maxWidth: 280,
+  },
+  regenBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs + 2,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  regenIcon: {
+    fontSize: 16,
+    color: colors.text,
+    fontWeight: "700",
+  },
+  regenBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.text,
   },
 });

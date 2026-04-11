@@ -9,7 +9,8 @@ HandyBot is built with **Expo + React Native**, so it runs on iOS, Android, and 
 - **Photo-first diagnosis.** Snap a picture with your camera or pick from your library; Claude's vision model identifies the issue and gives you a plain-English fix.
 - **Each repair is a project.** Claude doesn't just reply with prose — it generates a structured repair plan with a difficulty rating, time estimate, tools list, materials list, safety notes, and a numbered step-by-step checklist.
 - **Interactive walkthrough.** Work through the repair one step at a time: see the current step front-and-center, tap "Mark complete & continue" to advance, jump backward to revisit, and watch your progress fill in live.
-- **Follow-up chat with context.** Every project has a chat tab where you can send photos and ask questions mid-repair — Claude sees the full plan and current progress so it can reference specific steps.
+- **Claude can propose plan updates mid-repair.** When you send a follow-up photo or message, Claude can attach a structured plan-update suggestion (new steps, tools, materials, safety notes, or a revised difficulty/time estimate). You get an inline "Add to plan" / "Not now" card — accepting preserves all your existing progress and just appends the new items.
+- **Regenerate plan.** Not happy with the first plan? Tap **Regenerate plan** from the plan tab or overflow menu and HandyBot will build a fresh plan from your original photo.
 - **Dead-simple settings.** Sign out or delete everything — that's it.
 - **Local-first.** Issue metadata lives in `AsyncStorage`, photos are saved to the app's documents directory. No backend required for the MVP.
 

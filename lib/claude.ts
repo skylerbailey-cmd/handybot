@@ -4,6 +4,7 @@ import type {
   Difficulty,
   Issue,
   MaterialItem,
+  PlanProposal,
   PlanStep,
   RepairPlan,
   ToolItem,
@@ -41,10 +42,16 @@ Guidelines:
 - Acknowledge progress when the user shows you something they've done.
 - Adapt your advice to what you can actually see in any new photos.
 - Keep messages warm, short, and practical — the user is mid-repair.
-- If you see something that would change the plan (e.g. new damage, wrong part), tell the user plainly and suggest what to add or change.
 - Only flag safety concerns that are specific and actionable.
 
-Do not repeat the full plan back to the user — they can already see it in the app.`;
+Do not repeat the full plan back to the user — they can already see it in the app.
+
+You have access to the \`propose_plan_updates\` tool, which lets you suggest *additions* to the plan (new steps, new tools, new materials, new safety notes, or a revised difficulty / time estimate). Call this tool ONLY when the user's new information genuinely changes the plan — for example:
+- A follow-up photo reveals damage or a part the original photo didn't show.
+- The user reports they tried something that didn't work, and a different approach is now needed.
+- A safety concern is now apparent that wasn't visible before.
+
+Do NOT call the tool for minor clarifications, general encouragement, or simple how-to questions. When you do call it, ALWAYS still include a short plain-language chat reply so the user understands what changed.`;
 
 // --------------------------------------------------------------------------
 // Tool schema for structured plan generation
@@ -167,6 +174,77 @@ const CREATE_PLAN_TOOL = {
       "safety_notes",
       "opening_message",
     ],
+  },
+} as const;
+
+const PROPOSE_UPDATES_TOOL = {
+  name: "propose_plan_updates",
+  description:
+    "Propose additive changes to the current repair plan when new information from the user changes what needs to happen. Only call this when the change is meaningful (new damage, new discovery, wrong approach, new safety concern). All fields are additive — you may only APPEND new steps, tools, materials, and safety notes. Use new_difficulty or new_total_minutes only if the whole-project estimate should change.",
+  input_schema: {
+    type: "object",
+    properties: {
+      rationale: {
+        type: "string",
+        description:
+          "One sentence explaining what changed and why the plan needs an update. This is shown to the user verbatim.",
+      },
+      new_steps: {
+        type: "array",
+        description: "Additional steps to append to the current plan.",
+        items: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            detail: { type: "string" },
+            estimated_minutes: { type: "integer" },
+          },
+          required: ["title", "detail", "estimated_minutes"],
+        },
+      },
+      new_tools: {
+        type: "array",
+        description: "Additional tools the user will need.",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            required: { type: "boolean" },
+          },
+          required: ["name", "required"],
+        },
+      },
+      new_materials: {
+        type: "array",
+        description: "Additional materials or parts the user will need.",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            quantity: { type: "string" },
+            notes: { type: "string" },
+          },
+          required: ["name", "quantity"],
+        },
+      },
+      new_safety_notes: {
+        type: "array",
+        description: "Additional safety warnings to display.",
+        items: { type: "string" },
+      },
+      new_difficulty: {
+        type: "string",
+        enum: ["Easy", "Medium", "Hard", "Call a pro"],
+        description:
+          "Include only if the overall difficulty should change based on the new information.",
+      },
+      new_total_minutes: {
+        type: "integer",
+        description:
+          "Include only if the overall time estimate should change based on the new information.",
+      },
+    },
+    required: ["rationale"],
   },
 } as const;
 
@@ -403,10 +481,77 @@ function formatPlanForContext(plan: RepairPlan): string {
   return lines.join("\n");
 }
 
+export interface ChatReply {
+  text: string;
+  proposal?: PlanProposal;
+}
+
+interface RawProposalInput {
+  rationale: string;
+  new_steps?: Array<{ title: string; detail: string; estimated_minutes: number }>;
+  new_tools?: Array<{ name: string; required: boolean }>;
+  new_materials?: Array<{ name: string; quantity: string; notes?: string }>;
+  new_safety_notes?: string[];
+  new_difficulty?: string;
+  new_total_minutes?: number;
+}
+
+function parseProposal(raw: RawProposalInput): PlanProposal | undefined {
+  const rationale = String(raw.rationale ?? "").trim();
+  if (!rationale) return undefined;
+
+  const proposal: PlanProposal = {
+    rationale,
+    status: "pending",
+  };
+
+  if (Array.isArray(raw.new_steps) && raw.new_steps.length > 0) {
+    proposal.newSteps = raw.new_steps.map((s) => ({
+      title: String(s.title),
+      detail: String(s.detail),
+      estimatedMinutes: Number(s.estimated_minutes) || 0,
+    }));
+  }
+  if (Array.isArray(raw.new_tools) && raw.new_tools.length > 0) {
+    proposal.newTools = raw.new_tools.map((t) => ({
+      name: String(t.name),
+      required: Boolean(t.required),
+    }));
+  }
+  if (Array.isArray(raw.new_materials) && raw.new_materials.length > 0) {
+    proposal.newMaterials = raw.new_materials.map((m) => ({
+      name: String(m.name),
+      quantity: String(m.quantity),
+      notes: m.notes ? String(m.notes) : undefined,
+    }));
+  }
+  if (Array.isArray(raw.new_safety_notes) && raw.new_safety_notes.length > 0) {
+    proposal.newSafetyNotes = raw.new_safety_notes
+      .map((n) => String(n))
+      .filter((n) => n.length > 0);
+  }
+  if (raw.new_difficulty) {
+    proposal.newDifficulty = normalizeDifficulty(raw.new_difficulty);
+  }
+  if (typeof raw.new_total_minutes === "number" && raw.new_total_minutes > 0) {
+    proposal.newTotalMinutes = raw.new_total_minutes;
+  }
+
+  // If the proposal has no actual changes (just a rationale), drop it.
+  const hasChanges =
+    !!proposal.newSteps ||
+    !!proposal.newTools ||
+    !!proposal.newMaterials ||
+    !!proposal.newSafetyNotes ||
+    !!proposal.newDifficulty ||
+    !!proposal.newTotalMinutes;
+  return hasChanges ? proposal : undefined;
+}
+
 export async function sendProjectChat(
   issue: Issue,
   requestMessages: ChatRequestMessage[]
-): Promise<string> {
+): Promise<ChatReply> {
   const systemBlocks = [
     {
       type: "text" as const,
@@ -423,12 +568,76 @@ export async function sendProjectChat(
     model: MODEL,
     max_tokens: 1500,
     system: systemBlocks,
+    tools: [PROPOSE_UPDATES_TOOL],
     messages: toApiMessages(requestMessages),
   })) as ClaudeResponse;
 
-  return data.content
+  const text = data.content
     .filter((b): b is { type: "text"; text: string } => b.type === "text")
     .map((b) => b.text)
     .join("\n")
     .trim();
+
+  const toolUse = data.content.find(
+    (b): b is { type: "tool_use"; name: string; input: unknown } =>
+      b.type === "tool_use" && b.name === "propose_plan_updates"
+  );
+
+  let proposal: PlanProposal | undefined;
+  if (toolUse) {
+    proposal = parseProposal(toolUse.input as RawProposalInput);
+  }
+
+  return {
+    text:
+      text ||
+      (proposal
+        ? "I noticed something that might change your plan — take a look below."
+        : ""),
+    proposal,
+  };
+}
+
+/**
+ * Apply a user-accepted proposal to the plan. Additive only — existing
+ * steps, tools, materials, and safety notes are preserved, as is any
+ * per-item completion state the user had already set.
+ */
+export function applyProposalToPlan(
+  plan: RepairPlan,
+  proposal: PlanProposal
+): RepairPlan {
+  const newStepItems: PlanStep[] = (proposal.newSteps ?? []).map((s) => ({
+    id: generateId(),
+    title: s.title,
+    detail: s.detail,
+    estimatedMinutes: s.estimatedMinutes,
+    completed: false,
+  }));
+
+  const newToolItems: ToolItem[] = (proposal.newTools ?? []).map((t) => ({
+    id: generateId(),
+    name: t.name,
+    required: t.required,
+    have: false,
+  }));
+
+  const newMaterialItems: MaterialItem[] = (proposal.newMaterials ?? []).map(
+    (m) => ({
+      id: generateId(),
+      name: m.name,
+      quantity: m.quantity,
+      notes: m.notes,
+      have: false,
+    })
+  );
+
+  return {
+    difficulty: proposal.newDifficulty ?? plan.difficulty,
+    estimatedMinutes: proposal.newTotalMinutes ?? plan.estimatedMinutes,
+    tools: [...plan.tools, ...newToolItems],
+    materials: [...plan.materials, ...newMaterialItems],
+    steps: [...plan.steps, ...newStepItems],
+    safetyNotes: [...plan.safetyNotes, ...(proposal.newSafetyNotes ?? [])],
+  };
 }

@@ -1,5 +1,40 @@
 export type MessageRole = "user" | "assistant";
 
+export type ProposalStatus = "pending" | "accepted" | "dismissed";
+
+export interface ProposedStep {
+  title: string;
+  detail: string;
+  estimatedMinutes: number;
+}
+
+export interface ProposedTool {
+  name: string;
+  required: boolean;
+}
+
+export interface ProposedMaterial {
+  name: string;
+  quantity: string;
+  notes?: string;
+}
+
+/**
+ * A model-proposed update to the current repair plan. Surfaced in the chat
+ * thread as a card the user can Accept or Dismiss. Additive only — existing
+ * steps, tools, and materials are never mutated.
+ */
+export interface PlanProposal {
+  rationale: string;
+  newSteps?: ProposedStep[];
+  newTools?: ProposedTool[];
+  newMaterials?: ProposedMaterial[];
+  newSafetyNotes?: string[];
+  newDifficulty?: Difficulty;
+  newTotalMinutes?: number;
+  status: ProposalStatus;
+}
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
@@ -7,6 +42,8 @@ export interface ChatMessage {
   /** Local file URI (file://...) to an image saved by expo-file-system. */
   imageUri?: string;
   createdAt: number;
+  /** If the assistant suggested a plan change on this turn. */
+  proposal?: PlanProposal;
 }
 
 export type IssueStatus = "in_progress" | "resolved";
