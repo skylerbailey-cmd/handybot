@@ -15,6 +15,8 @@ interface Props {
   savingsAmount?: number;
   /** Set a specific step's completed flag. */
   onSetStepCompleted: (stepId: string, completed: boolean) => void;
+  /** Opens the step help modal for the given step. */
+  onRequestStepHelp?: (stepId: string) => void;
 }
 
 /**
@@ -31,6 +33,7 @@ export default function InteractiveStepper({
   steps,
   savingsAmount,
   onSetStepCompleted,
+  onRequestStepHelp,
 }: Props) {
   const total = steps.length;
   const doneCount = useMemo(
@@ -157,6 +160,18 @@ export default function InteractiveStepper({
               </Text>
             </View>
           ) : null}
+          {onRequestStepHelp && (
+            <Pressable
+              onPress={() => onRequestStepHelp(step.id)}
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.helpBtn,
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Text style={styles.helpBtnText}>?</Text>
+            </Pressable>
+          )}
         </View>
 
         <Text style={styles.stepDetail}>{step.detail}</Text>
@@ -413,6 +428,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     color: colors.brandDark,
+  },
+  helpBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    borderColor: colors.brand,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+  },
+  helpBtnText: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: colors.brand,
   },
   stepDetail: {
     fontSize: 15,

@@ -18,13 +18,16 @@ import MessageBubble from "@/components/MessageBubble";
 import PlanProposalCard from "@/components/PlanProposalCard";
 import PlanView from "@/components/PlanView";
 import SegmentedTabs from "@/components/SegmentedTabs";
+import StepHelpModal from "@/components/StepHelpModal";
 import TypingIndicator from "@/components/TypingIndicator";
 import {
   applyProposalToPlan,
+  applyVerificationResult,
   createRepairPlan,
   sendProjectChat,
+  verifyRepair,
 } from "@/lib/claude";
-import { readImageAsBase64 } from "@/lib/image";
+import { pickAndProcessImage, readImageAsBase64 } from "@/lib/image";
 import {
   deleteIssue,
   generateId,
@@ -49,6 +52,9 @@ export default function IssueWorkspaceScreen() {
   const [draft, setDraft] = useState("");
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [stepHelpSending, setStepHelpSending] = useState(false);
+  const [helpStepId, setHelpStepId] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const listRef = useRef<FlatList<ChatMessage>>(null);
@@ -63,7 +69,27 @@ export default function IssueWorkspaceScreen() {
     loadIssue();
   }, [loadIssue]);
 
-  const chatCount = issue?.messages.length ?? 0;
+  /**
+   * Messages shown in the main Chat tab — excludes step-scoped Q&A,
+   * which live in the step help modal instead.
+   */
+  const mainChatMessages = useMemo(
+    () => (issue?.messages ?? []).filter((m) => !m.relatedStepId),
+    [issue?.messages]
+  );
+  const chatCount = mainChatMessages.length;
+  const helpStep = useMemo(
+    () =>
+      helpStepId && issue
+        ? issue.plan.steps.find((s) => s.id === helpStepId)
+        : undefined,
+    [helpStepId, issue]
+  );
+  const helpStepNumber = useMemo(() => {
+    if (!helpStepId || !issue) return 0;
+    const idx = issue.plan.steps.findIndex((s) => s.id === helpStepId);
+    return idx < 0 ? 0 : idx + 1;
+  }, [helpStepId, issue]);
 
   useEffect(() => {
     if (tab !== "chat" || chatCount === 0) return;
@@ -280,6 +306,37 @@ export default function IssueWorkspaceScreen() {
     }
   }
 
+  /**
+   * Serialize issue.messages into the Claude API shape. User messages with
+   * a relatedStepId get a "[About step N: title]" prefix so Claude knows
+   * which step the question is about without the UI having to pollute the
+   * stored text.
+   */
+  async function buildApiMessages(
+    forIssue: Issue
+  ): Promise<ChatRequestMessage[]> {
+    return Promise.all(
+      forIssue.messages.map(async (m) => {
+        let text = m.text;
+        if (m.role === "user" && m.relatedStepId) {
+          const idx = forIssue.plan.steps.findIndex(
+            (s) => s.id === m.relatedStepId
+          );
+          const step = idx >= 0 ? forIssue.plan.steps[idx] : undefined;
+          if (step) {
+            text = `[About step ${idx + 1}: "${step.title}"]\n${m.text}`;
+          }
+        }
+        const base: ChatRequestMessage = { role: m.role, text };
+        if (m.imageUri) {
+          base.imageBase64 = await readImageAsBase64(m.imageUri);
+          base.imageMediaType = "image/jpeg";
+        }
+        return base;
+      })
+    );
+  }
+
   async function handleSend() {
     if (!issue || sending) return;
     const trimmed = draft.trim();
@@ -307,17 +364,7 @@ export default function IssueWorkspaceScreen() {
     setSending(true);
 
     try {
-      const apiMessages: ChatRequestMessage[] = await Promise.all(
-        withUser.messages.map(async (m) => {
-          const base: ChatRequestMessage = { role: m.role, text: m.text };
-          if (m.imageUri) {
-            base.imageBase64 = await readImageAsBase64(m.imageUri);
-            base.imageMediaType = "image/jpeg";
-          }
-          return base;
-        })
-      );
-
+      const apiMessages = await buildApiMessages(withUser);
       const reply = await sendProjectChat(withUser, apiMessages);
 
       const assistantMsg: ChatMessage = {
@@ -347,6 +394,88 @@ export default function IssueWorkspaceScreen() {
       setError(msg);
     } finally {
       setSending(false);
+    }
+  }
+
+  async function handleStepHelpSend(stepId: string, text: string) {
+    if (!issue || stepHelpSending) return;
+
+    const userMsg: ChatMessage = {
+      id: generateId(),
+      role: "user",
+      text,
+      createdAt: Date.now(),
+      relatedStepId: stepId,
+    };
+    const withUser: Issue = {
+      ...issue,
+      messages: [...issue.messages, userMsg],
+      updatedAt: Date.now(),
+    };
+    await persist(withUser);
+
+    setStepHelpSending(true);
+    try {
+      const apiMessages = await buildApiMessages(withUser);
+      const reply = await sendProjectChat(withUser, apiMessages);
+      const assistantMsg: ChatMessage = {
+        id: generateId(),
+        role: "assistant",
+        text: reply.text || "Let me know if that helps.",
+        createdAt: Date.now(),
+        relatedStepId: stepId,
+        proposal: reply.proposal,
+      };
+      await persist({
+        ...withUser,
+        messages: [...withUser.messages, assistantMsg],
+        updatedAt: Date.now(),
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not reach Claude";
+      Alert.alert("Couldn't fetch help", msg);
+    } finally {
+      setStepHelpSending(false);
+    }
+  }
+
+  async function handleRequestVerify() {
+    if (!issue || verifying) return;
+    setError(null);
+    try {
+      const picked = await pickAndProcessImage("camera").catch(() => null);
+      // If camera pick failed / was canceled, fall back to library.
+      const result = picked ?? (await pickAndProcessImage("library"));
+      if (!result) return;
+      setVerifying(true);
+      const base64 = await readImageAsBase64(result.uri);
+      const verifyResult = await verifyRepair({
+        issue,
+        imageBase64: base64,
+        imageMediaType: "image/jpeg",
+      });
+      const updatedPlan = applyVerificationResult(
+        issue.plan,
+        verifyResult,
+        result.uri
+      );
+      await persist({
+        ...issue,
+        plan: updatedPlan,
+        updatedAt: Date.now(),
+      });
+      if (!verifyResult.verified && verifyResult.fixSteps.length > 0) {
+        Alert.alert(
+          "A few things to fix",
+          `HandyBot added ${verifyResult.fixSteps.length} fix-up ${verifyResult.fixSteps.length === 1 ? "step" : "steps"} to your plan. Work through them and verify again when you're done.`
+        );
+      }
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Could not verify the repair.";
+      Alert.alert("Verify failed", msg);
+    } finally {
+      setVerifying(false);
     }
   }
 
@@ -420,6 +549,9 @@ export default function IssueWorkspaceScreen() {
             onSetStepCompleted={setStepCompleted}
             onToggleTool={toggleTool}
             onToggleMaterial={toggleMaterial}
+            onRequestStepHelp={(stepId) => setHelpStepId(stepId)}
+            onRequestVerify={handleRequestVerify}
+            verifying={verifying}
             onRegenerate={confirmRegenerate}
             regenerating={regenerating}
           />
@@ -427,7 +559,7 @@ export default function IssueWorkspaceScreen() {
           <View style={{ flex: 1 }}>
             <FlatList
               ref={listRef}
-              data={issue.messages}
+              data={mainChatMessages}
               keyExtractor={(m) => m.id}
               renderItem={renderChatItem}
               contentContainerStyle={styles.listContent}
@@ -498,6 +630,16 @@ export default function IssueWorkspaceScreen() {
           </View>
         )}
       </KeyboardAvoidingView>
+
+      <StepHelpModal
+        visible={!!helpStep}
+        step={helpStep ?? null}
+        stepNumber={helpStepNumber}
+        messages={issue.messages}
+        sending={stepHelpSending}
+        onClose={() => setHelpStepId(null)}
+        onSend={handleStepHelpSend}
+      />
     </>
   );
 }

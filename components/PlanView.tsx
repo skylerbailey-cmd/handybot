@@ -4,6 +4,7 @@ import DifficultyBadge from "./DifficultyBadge";
 import InteractiveStepper from "./InteractiveStepper";
 import RiskCard from "./RiskCard";
 import SuggestedRemindersCard from "./SuggestedRemindersCard";
+import VerificationCard from "./VerificationCard";
 import {
   colors,
   formatDuration,
@@ -18,6 +19,9 @@ interface Props {
   onSetStepCompleted: (stepId: string, completed: boolean) => void;
   onToggleTool: (toolId: string) => void;
   onToggleMaterial: (materialId: string) => void;
+  onRequestStepHelp?: (stepId: string) => void;
+  onRequestVerify?: () => void;
+  verifying?: boolean;
   onRegenerate?: () => void;
   regenerating?: boolean;
 }
@@ -27,6 +31,9 @@ export default function PlanView({
   onSetStepCompleted,
   onToggleTool,
   onToggleMaterial,
+  onRequestStepHelp,
+  onRequestVerify,
+  verifying,
   onRegenerate,
   regenerating,
 }: Props) {
@@ -132,8 +139,17 @@ export default function PlanView({
             steps={plan.steps}
             savingsAmount={savingsAmount}
             onSetStepCompleted={onSetStepCompleted}
+            onRequestStepHelp={onRequestStepHelp}
           />
         </Section>
+      )}
+
+      {allDone && onRequestVerify && (
+        <VerificationCard
+          verifying={!!verifying}
+          result={plan.verificationResult}
+          onRequestVerify={onRequestVerify}
+        />
       )}
 
       {allDone && plan.suggestedReminders && plan.suggestedReminders.length > 0 && (

@@ -51,6 +51,13 @@ export interface ChatMessage {
   createdAt: number;
   /** If the assistant suggested a plan change on this turn. */
   proposal?: PlanProposal;
+  /**
+   * If this message is a question/answer about a specific plan step, the
+   * ID of that step. Step-scoped messages are shown inside the step help
+   * modal and filtered OUT of the main chat thread so the main tab stays
+   * focused on project-level discussion.
+   */
+  relatedStepId?: string;
 }
 
 export type IssueStatus = "in_progress" | "resolved";
@@ -128,6 +135,20 @@ export interface SuggestedReminder {
   icon: string;
 }
 
+/**
+ * Result of Claude verifying a photo of the completed repair. Stored on
+ * the plan so the UI can show the latest outcome even after a reload.
+ */
+export interface VerificationResult {
+  verified: boolean;
+  feedback: string;
+  verifiedAt: number;
+  /** Local file URI of the photo the user submitted for verification. */
+  photoUri?: string;
+  /** Number of fix-up steps appended the last time verification failed. */
+  fixStepsAdded?: number;
+}
+
 export interface RepairPlan {
   difficulty: Difficulty;
   /** Total estimated time across all steps, in minutes. */
@@ -151,6 +172,8 @@ export interface RepairPlan {
    * complete the repair so a one-time fix can become a lasting habit.
    */
   suggestedReminders?: SuggestedReminder[];
+  /** Latest result of verifying a finished-work photo, if any. */
+  verificationResult?: VerificationResult;
 }
 
 export type ReminderCategory =

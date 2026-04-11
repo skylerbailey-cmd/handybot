@@ -12,6 +12,7 @@ import type {
   RiskSeverity,
   SuggestedReminder,
   ToolItem,
+  VerificationResult,
 } from "./types";
 
 const MODEL = "claude-sonnet-4-6";
@@ -268,6 +269,47 @@ const CREATE_PLAN_TOOL = {
       "safety_notes",
       "opening_message",
     ],
+  },
+} as const;
+
+const VERIFY_REPAIR_TOOL = {
+  name: "verify_repair_from_photo",
+  description:
+    "Analyze a photo of the user's completed repair and verify whether it looks correctly done. If there are real issues you can see in the photo, return fix_steps containing the additional work the user must do. Be generous on acceptance for cosmetic / subjective cases — only reject when you see a concrete problem.",
+  input_schema: {
+    type: "object",
+    properties: {
+      verified: {
+        type: "boolean",
+        description:
+          "True if the repair looks correctly done based on the photo. False if you can see a specific problem that needs fixing.",
+      },
+      feedback: {
+        type: "string",
+        description:
+          "1-3 sentences summarizing what you see and why you accepted or rejected the repair. Speak directly to the user, warmly and specifically. Reference what's visible in the photo.",
+      },
+      fix_steps: {
+        type: "array",
+        description:
+          "If verified is false, return ordered fix-up steps the user must do to correct the problems you see. Omit or leave empty when verified is true.",
+        items: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            detail: { type: "string" },
+            estimated_minutes: { type: "integer" },
+            critical_warning: {
+              type: "string",
+              description:
+                "Optional 'don't mess this up' callout for this fix-up step. Same rules as create_repair_plan.",
+            },
+          },
+          required: ["title", "detail", "estimated_minutes"],
+        },
+      },
+    },
+    required: ["verified", "feedback"],
   },
 } as const;
 
@@ -858,5 +900,137 @@ export function applyProposalToPlan(
     materials: [...plan.materials, ...newMaterialItems],
     steps: [...plan.steps, ...newStepItems],
     safetyNotes: [...plan.safetyNotes, ...(proposal.newSafetyNotes ?? [])],
+    risk: plan.risk,
+    suggestedReminders: plan.suggestedReminders,
+    verificationResult: plan.verificationResult,
+  };
+}
+
+// --------------------------------------------------------------------------
+// Verify a finished-work photo
+// --------------------------------------------------------------------------
+
+const VERIFY_SYSTEM_PROMPT = `You are HandyBot verifying a homeowner's completed repair from a single photo. Be generous and encouraging on acceptance — if the work looks reasonable and matches the plan, verify it. Only reject when you can SEE a specific problem in the photo that needs concrete follow-up work.
+
+When you reject:
+- Be specific about what you see ("I can see the plumber's tape extending past the threads", "there's a gap in the caulk along the left edge").
+- Return 1-5 concrete fix_steps the user should do to correct the problems. Each fix step should be a single clear action.
+- You may include a critical_warning on a fix step when there is one specific mistake a novice often makes on that fix.
+
+When you accept:
+- Say warmly what you can see was done well. One or two sentences.
+- Leave fix_steps empty or omit it.
+
+You MUST call the verify_repair_from_photo tool. Do not reply with plain text.`;
+
+interface RawFixStep {
+  title: string;
+  detail: string;
+  estimated_minutes: number;
+  critical_warning?: string;
+}
+
+interface RawVerifyInput {
+  verified: boolean;
+  feedback: string;
+  fix_steps?: RawFixStep[];
+}
+
+export interface VerifyResult {
+  verified: boolean;
+  feedback: string;
+  fixSteps: PlanStep[];
+}
+
+export async function verifyRepair(args: {
+  issue: Issue;
+  imageBase64: string;
+  imageMediaType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+}): Promise<VerifyResult> {
+  const planContext = formatPlanForContext(args.issue.plan);
+
+  const userMessage: ChatRequestMessage = {
+    role: "user",
+    text:
+      `Here is a photo of my finished repair for "${args.issue.title}". ` +
+      `Please verify whether it looks right. If there's something I need to fix, give me concrete steps.\n\n` +
+      `For context, this was the plan I just worked through:\n${planContext}`,
+    imageBase64: args.imageBase64,
+    imageMediaType: args.imageMediaType ?? "image/jpeg",
+  };
+
+  const data = (await callAnthropic({
+    model: MODEL,
+    max_tokens: 1500,
+    system: [
+      {
+        type: "text",
+        text: VERIFY_SYSTEM_PROMPT,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    tools: [VERIFY_REPAIR_TOOL],
+    tool_choice: { type: "tool", name: "verify_repair_from_photo" },
+    messages: toApiMessages([userMessage]),
+  })) as ClaudeResponse;
+
+  const toolUse = data.content.find(
+    (b): b is { type: "tool_use"; name: string; input: unknown } =>
+      b.type === "tool_use" && b.name === "verify_repair_from_photo"
+  );
+
+  if (!toolUse) {
+    throw new Error("Claude did not return a structured verification. Try again.");
+  }
+
+  const raw = toolUse.input as RawVerifyInput;
+  const verified = Boolean(raw.verified);
+  const feedback = String(raw.feedback ?? "").trim();
+
+  const rawFix = Array.isArray(raw.fix_steps) ? raw.fix_steps : [];
+  const fixSteps: PlanStep[] = verified
+    ? []
+    : rawFix
+        .map((s) => ({
+          id: generateId(),
+          title: String(s.title ?? "").trim(),
+          detail: String(s.detail ?? "").trim(),
+          estimatedMinutes:
+            typeof s.estimated_minutes === "number" ? s.estimated_minutes : undefined,
+          criticalWarning:
+            typeof s.critical_warning === "string" &&
+            s.critical_warning.trim().length > 0
+              ? s.critical_warning.trim()
+              : undefined,
+          completed: false,
+        }))
+        .filter((s) => s.title.length > 0);
+
+  return { verified, feedback, fixSteps };
+}
+
+/**
+ * Apply a verification result to a plan. Stores the result and appends any
+ * fix-up steps to the end of the step list (with fresh IDs, completed=false).
+ */
+export function applyVerificationResult(
+  plan: RepairPlan,
+  verify: VerifyResult,
+  photoUri?: string
+): RepairPlan {
+  const verificationResult: VerificationResult = {
+    verified: verify.verified,
+    feedback: verify.feedback,
+    verifiedAt: Date.now(),
+    photoUri,
+    fixStepsAdded: verify.fixSteps.length,
+  };
+
+  return {
+    ...plan,
+    steps: verify.verified
+      ? plan.steps
+      : [...plan.steps, ...verify.fixSteps],
+    verificationResult,
   };
 }
