@@ -37,6 +37,7 @@ Guidelines:
 - Provide a realistic estimated_savings_usd reflecting the LABOR cost only that hiring a licensed pro (handyman, plumber, electrician, etc.) would charge at typical US market rates. Do NOT include materials in this number — the user is buying those. Examples of reasonable ranges: swap an outlet or light switch ~$125-200, fix a dripping faucet ~$150-250, patch drywall ~$200-400, replace a running toilet fill valve ~$150-250, unclog a kitchen drain ~$150-300, replace a garbage disposal ~$200-400, minor roof flashing repair ~$300-600. Set to 0 only if the photo does not actually show something that needs fixing.
 - Set the \`risk\` field ONLY when the work involves a genuine physical hazard (live electrical, pressurized water lines, gas, working at height, chemicals, structural, fire risk, or sharp tools/materials). Choose the category that matches the primary hazard. Pick severity based on how likely serious harm is if the user makes a mistake: low = minor shock / small leak / scrape, medium = significant property damage or injury potential, high = risk of fire, electrocution, flooding, gas leak, structural collapse, or serious falls. Set call_a_pro_recommended=true when the severity is medium/high AND a licensed pro would substantially reduce the risk. Omit the risk field entirely for purely cosmetic / low-stakes repairs. The user can always proceed either way — this is advisory.
 - If the fix has an obvious recurring-maintenance follow-up (changing a filter every few months, flushing a water heater annually, etc.), populate suggested_reminders with 1-3 items the user could enable after the repair is done. Omit the field for one-off fixes where no recurring task makes sense.
+- For each step, set critical_warning ONLY when there is one specific, high-stakes mistake a novice commonly makes on that step. The warning must be concrete, imperative, and focused on the single "don't do this or you'll ruin it" error — not general safety advice. Omit this field for routine steps. Good examples: "Turn off the breaker at the main panel first — testing with the switch is not enough", "Don't overtighten the compression nut or you'll crack the pipe — snug plus a quarter turn is enough", "Lift the toilet straight up and keep it level, or you'll snap the closet bolts", "Never pour water on a grease fire — cover the pan with a metal lid instead", "Mark which wire goes where before disconnecting or you'll reverse polarity". Bad examples (too generic, do NOT use): "Be careful", "Wear safety glasses", "Work slowly".
 
 You MUST call the create_repair_plan tool. Do not reply with plain text.`;
 
@@ -158,6 +159,11 @@ const CREATE_PLAN_TOOL = {
             estimated_minutes: {
               type: "integer",
               description: "Time in minutes for this step.",
+            },
+            critical_warning: {
+              type: "string",
+              description:
+                "Optional 'don't mess this up' callout: the ONE specific mistake a novice commonly makes on this step that ruins the repair or causes damage/injury. Be concrete and imperative — e.g. 'Don't overtighten the compression nut or you'll crack the pipe'. Omit entirely for routine steps that don't have a clear high-stakes failure mode. Do NOT use for generic safety advice like 'be careful' or 'wear gloves'.",
             },
           },
           required: ["title", "detail", "estimated_minutes"],
@@ -286,6 +292,11 @@ const PROPOSE_UPDATES_TOOL = {
             title: { type: "string" },
             detail: { type: "string" },
             estimated_minutes: { type: "integer" },
+            critical_warning: {
+              type: "string",
+              description:
+                "Optional 'don't mess this up' callout for the ONE specific mistake that ruins this step. Same rules as create_repair_plan.",
+            },
           },
           required: ["title", "detail", "estimated_minutes"],
         },
@@ -434,7 +445,12 @@ interface RawPlanInput {
   estimated_savings_usd: number;
   tools: Array<{ name: string; required: boolean }>;
   materials: Array<{ name: string; quantity: string; notes?: string }>;
-  steps: Array<{ title: string; detail: string; estimated_minutes?: number }>;
+  steps: Array<{
+    title: string;
+    detail: string;
+    estimated_minutes?: number;
+    critical_warning?: string;
+  }>;
   safety_notes: string[];
   risk?: {
     severity?: string;
@@ -545,6 +561,10 @@ function parsePlan(raw: RawPlanInput): GeneratedPlan {
     detail: String(s.detail),
     estimatedMinutes:
       typeof s.estimated_minutes === "number" ? s.estimated_minutes : undefined,
+    criticalWarning:
+      typeof s.critical_warning === "string" && s.critical_warning.trim().length > 0
+        ? s.critical_warning.trim()
+        : undefined,
     completed: false,
   }));
 
@@ -647,6 +667,9 @@ function formatPlanForContext(plan: RepairPlan): string {
         s.estimatedMinutes ? ` (${s.estimatedMinutes} min)` : ""
       }`
     );
+    if (s.criticalWarning) {
+      lines.push(`   ⚠ DON'T MESS UP: ${s.criticalWarning}`);
+    }
   });
   if (plan.safetyNotes.length) {
     lines.push("");
@@ -663,7 +686,12 @@ export interface ChatReply {
 
 interface RawProposalInput {
   rationale: string;
-  new_steps?: Array<{ title: string; detail: string; estimated_minutes: number }>;
+  new_steps?: Array<{
+    title: string;
+    detail: string;
+    estimated_minutes: number;
+    critical_warning?: string;
+  }>;
   new_tools?: Array<{ name: string; required: boolean }>;
   new_materials?: Array<{ name: string; quantity: string; notes?: string }>;
   new_safety_notes?: string[];
@@ -686,6 +714,11 @@ function parseProposal(raw: RawProposalInput): PlanProposal | undefined {
       title: String(s.title),
       detail: String(s.detail),
       estimatedMinutes: Number(s.estimated_minutes) || 0,
+      criticalWarning:
+        typeof s.critical_warning === "string" &&
+        s.critical_warning.trim().length > 0
+          ? s.critical_warning.trim()
+          : undefined,
     }));
   }
   if (Array.isArray(raw.new_tools) && raw.new_tools.length > 0) {
@@ -795,6 +828,7 @@ export function applyProposalToPlan(
     title: s.title,
     detail: s.detail,
     estimatedMinutes: s.estimatedMinutes,
+    criticalWarning: s.criticalWarning,
     completed: false,
   }));
 

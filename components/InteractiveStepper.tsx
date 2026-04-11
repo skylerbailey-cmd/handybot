@@ -161,6 +161,18 @@ export default function InteractiveStepper({
 
         <Text style={styles.stepDetail}>{step.detail}</Text>
 
+        {step.criticalWarning && (
+          <View style={styles.criticalCard}>
+            <View style={styles.criticalIconWrap}>
+              <Text style={styles.criticalIcon}>⚠</Text>
+            </View>
+            <View style={styles.criticalBody}>
+              <Text style={styles.criticalLabel}>DON&apos;T MESS THIS UP</Text>
+              <Text style={styles.criticalText}>{step.criticalWarning}</Text>
+            </View>
+          </View>
+        )}
+
         {step.completed && (
           <View style={styles.doneStatus}>
             <Text style={styles.doneStatusText}>Completed</Text>
@@ -406,6 +418,49 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     color: colors.text,
+  },
+  criticalCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm + 2,
+    backgroundColor: "#fff7ed",
+    borderLeftWidth: 4,
+    borderLeftColor: "#ea580c",
+    borderWidth: 1,
+    borderColor: "#fed7aa",
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginTop: spacing.xs,
+  },
+  criticalIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.pill,
+    backgroundColor: "#ea580c",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  criticalIcon: {
+    color: "#ffffff",
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  criticalBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  criticalLabel: {
+    fontSize: 11,
+    fontWeight: "900",
+    color: "#9a3412",
+    letterSpacing: 0.8,
+    marginBottom: 3,
+  },
+  criticalText: {
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 20,
+    color: "#7c2d12",
   },
   doneStatus: {
     alignSelf: "flex-start",

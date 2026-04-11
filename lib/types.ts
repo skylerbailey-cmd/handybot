@@ -6,6 +6,12 @@ export interface ProposedStep {
   title: string;
   detail: string;
   estimatedMinutes: number;
+  /**
+   * Optional "don't mess this up" warning: the one specific mistake a
+   * novice commonly makes that ruins the repair. Only set for steps
+   * where a concrete, high-stakes error is likely.
+   */
+  criticalWarning?: string;
 }
 
 export interface ProposedTool {
@@ -103,6 +109,13 @@ export interface PlanStep {
   title: string;
   detail: string;
   estimatedMinutes?: number;
+  /**
+   * "Don't mess this up" callout for the one specific mistake that ruins
+   * this step — e.g. "Don't overtighten the fitting or you'll crack the
+   * pipe" or "Turn off the breaker at the main panel first". Optional;
+   * most steps won't have one.
+   */
+  criticalWarning?: string;
   completed: boolean;
 }
 
