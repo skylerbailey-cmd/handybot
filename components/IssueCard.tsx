@@ -1,6 +1,6 @@
-"use client";
-
-import Link from "next/link";
+import { Link } from "expo-router";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { colors, radius, spacing } from "@/lib/theme";
 import type { Issue } from "@/lib/types";
 
 function timeAgo(ts: number) {
@@ -18,80 +18,113 @@ function timeAgo(ts: number) {
 
 export default function IssueCard({ issue }: { issue: Issue }) {
   return (
-    <Link
-      href={`/issues/${issue.id}`}
-      className="card flex items-center gap-4 p-3 transition hover:-translate-y-0.5 hover:shadow-md"
-    >
-      <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-stone-100">
-        {issue.coverImage ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={issue.coverImage}
-            alt=""
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-stone-400">
-            <PhotoIcon />
-          </div>
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <h3 className="truncate text-base font-semibold text-stone-900">
-            {issue.title || "Untitled repair"}
-          </h3>
-          {issue.status === "resolved" && (
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
-              Resolved
-            </span>
+    <Link href={`/issue/${issue.id}`} asChild>
+      <Pressable style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+        <View style={styles.thumb}>
+          {issue.coverImageUri ? (
+            <Image source={{ uri: issue.coverImageUri }} style={styles.thumbImage} />
+          ) : (
+            <View style={styles.thumbPlaceholder}>
+              <Text style={styles.thumbPlaceholderText}>📷</Text>
+            </View>
           )}
-        </div>
-        <p className="mt-0.5 line-clamp-2 text-sm text-stone-600">
-          {issue.summary || "Tap to continue the conversation."}
-        </p>
-        <p className="mt-1 text-xs text-stone-400">
-          Updated {timeAgo(issue.updatedAt)}
-        </p>
-      </div>
-      <ChevronIcon />
+        </View>
+        <View style={styles.body}>
+          <View style={styles.titleRow}>
+            <Text style={styles.title} numberOfLines={1}>
+              {issue.title || "Untitled repair"}
+            </Text>
+            {issue.status === "resolved" && (
+              <View style={styles.resolvedBadge}>
+                <Text style={styles.resolvedBadgeText}>Resolved</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.summary} numberOfLines={2}>
+            {issue.summary || "Tap to continue the conversation."}
+          </Text>
+          <Text style={styles.timestamp}>Updated {timeAgo(issue.updatedAt)}</Text>
+        </View>
+        <Text style={styles.chevron}>›</Text>
+      </Pressable>
     </Link>
   );
 }
 
-function PhotoIcon() {
-  return (
-    <svg
-      width="28"
-      height="28"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect width="18" height="18" x="3" y="3" rx="2" />
-      <circle cx="9" cy="9" r="2" />
-      <path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" />
-    </svg>
-  );
-}
-
-function ChevronIcon() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="flex-shrink-0 text-stone-400"
-    >
-      <path d="m9 18 6-6-6-6" />
-    </svg>
-  );
-}
+const styles = StyleSheet.create({
+  card: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+  },
+  pressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.995 }],
+  },
+  thumb: {
+    width: 72,
+    height: 72,
+    borderRadius: radius.md,
+    overflow: "hidden",
+    backgroundColor: "#f5f5f4",
+  },
+  thumbImage: {
+    width: "100%",
+    height: "100%",
+  },
+  thumbPlaceholder: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  thumbPlaceholderText: {
+    fontSize: 28,
+  },
+  body: {
+    flex: 1,
+    minWidth: 0,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  title: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  resolvedBadge: {
+    backgroundColor: colors.successBg,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+  },
+  resolvedBadgeText: {
+    color: colors.success,
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  summary: {
+    marginTop: 2,
+    fontSize: 13,
+    color: colors.textMuted,
+    lineHeight: 18,
+  },
+  timestamp: {
+    marginTop: 4,
+    fontSize: 11,
+    color: colors.textSubtle,
+  },
+  chevron: {
+    fontSize: 28,
+    color: colors.textSubtle,
+    paddingHorizontal: 4,
+  },
+});

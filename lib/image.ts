@@ -1,64 +1,83 @@
-"use client";
+import * as FileSystem from "expo-file-system";
+import * as ImageManipulator from "expo-image-manipulator";
+import * as ImagePicker from "expo-image-picker";
 
-/**
- * Resize and compress an image file to keep localStorage usage manageable.
- * Returns a JPEG data URL.
- */
-export async function fileToResizedDataUrl(
-  file: File,
-  maxDimension = 1024,
-  quality = 0.82
-): Promise<string> {
-  const dataUrl = await readFileAsDataUrl(file);
-  const img = await loadImage(dataUrl);
+const IMAGES_DIR = `${FileSystem.documentDirectory}handybot/`;
 
-  const { width, height } = img;
-  const scale = Math.min(1, maxDimension / Math.max(width, height));
-  const targetW = Math.round(width * scale);
-  const targetH = Math.round(height * scale);
-
-  const canvas = document.createElement("canvas");
-  canvas.width = targetW;
-  canvas.height = targetH;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Could not get canvas context");
-  ctx.drawImage(img, 0, 0, targetW, targetH);
-
-  return canvas.toDataURL("image/jpeg", quality);
-}
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(reader.error ?? new Error("Read failed"));
-    reader.readAsDataURL(file);
-  });
-}
-
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("Failed to load image"));
-    img.src = src;
-  });
-}
-
-/**
- * Split a data URL into a media type and raw base64 body.
- * Throws if the input isn't a base64 data URL.
- */
-export function splitDataUrl(dataUrl: string): {
-  mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
-  data: string;
-} {
-  const match = /^data:(image\/(jpeg|png|gif|webp));base64,(.+)$/.exec(dataUrl);
-  if (!match) {
-    throw new Error("Unsupported image format");
+async function ensureImagesDir() {
+  const info = await FileSystem.getInfoAsync(IMAGES_DIR);
+  if (!info.exists) {
+    await FileSystem.makeDirectoryAsync(IMAGES_DIR, { intermediates: true });
   }
-  return {
-    mediaType: match[1] as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
-    data: match[3],
-  };
+}
+
+export type ImageSource = "camera" | "library";
+
+export interface ProcessedImage {
+  /** file:// URI of the persisted, resized JPEG on disk. */
+  uri: string;
+}
+
+/**
+ * Launches the camera or photo library, lets the user pick an image, resizes
+ * it, and copies it into the app's documents directory so it survives
+ * process restarts. Returns null if the user canceled.
+ */
+export async function pickAndProcessImage(
+  source: ImageSource
+): Promise<ProcessedImage | null> {
+  if (source === "camera") {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      throw new Error("Camera permission is required to take a photo.");
+    }
+  } else {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      throw new Error("Photo library permission is required.");
+    }
+  }
+
+  const result =
+    source === "camera"
+      ? await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 1,
+          allowsEditing: false,
+        })
+      : await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 1,
+          allowsEditing: false,
+        });
+
+  if (result.canceled || !result.assets || result.assets.length === 0) {
+    return null;
+  }
+
+  const asset = result.assets[0];
+
+  const manipulated = await ImageManipulator.manipulateAsync(
+    asset.uri,
+    [{ resize: { width: 1280 } }],
+    { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG }
+  );
+
+  await ensureImagesDir();
+  const persistentUri = `${IMAGES_DIR}${Date.now()}_${Math.random()
+    .toString(36)
+    .slice(2, 8)}.jpg`;
+  await FileSystem.copyAsync({ from: manipulated.uri, to: persistentUri });
+
+  return { uri: persistentUri };
+}
+
+/**
+ * Reads a persisted image file and returns its base64-encoded body, for
+ * sending to the Claude vision API.
+ */
+export async function readImageAsBase64(uri: string): Promise<string> {
+  return await FileSystem.readAsStringAsync(uri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
 }

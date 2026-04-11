@@ -2,75 +2,102 @@
 
 An AI handyman in your pocket. Take a photo of something broken in your house, and Claude walks you through how to fix it — step by step. Each repair gets its own workspace where you can keep uploading more photos and talking to HandyBot as the work progresses.
 
+HandyBot is built with **Expo + React Native**, so it runs on iOS, Android, and the web from a single codebase.
+
 ## Features
 
-- **Photo-first diagnosis.** Snap a picture of the problem; Claude's vision model identifies the issue and gives you a plain-English fix.
+- **Photo-first diagnosis.** Snap a picture with your camera or pick from your library; Claude's vision model identifies the issue and gives you a plain-English fix.
 - **One workspace per repair.** Each issue has its own chat thread so the model can track context and progress over time.
-- **Follow-up photos.** Upload another picture mid-repair and keep the conversation going.
-- **Dead-simple settings.** Sign out or delete everything, that's it.
-- **Local-first.** No backend database — your repairs live in your browser's storage.
+- **Follow-up photos.** Attach another picture mid-repair to keep the conversation going.
+- **Dead-simple settings.** Sign out or delete everything — that's it.
+- **Local-first.** Issue metadata lives in `AsyncStorage`, photos are saved to the app's documents directory. No backend required for the MVP.
 
 ## Stack
 
-- Next.js 14 (App Router) + TypeScript
-- Tailwind CSS
-- `@anthropic-ai/sdk` with Claude Sonnet 4.6 (vision)
-- `localStorage` for issue persistence
+- **Expo SDK 51** + React Native 0.74 + expo-router 3
+- **Claude Sonnet 4.6** via the Anthropic Messages API (direct `fetch`)
+- `expo-image-picker` + `expo-image-manipulator` for camera/library + resize
+- `@react-native-async-storage/async-storage` for issue metadata
+- `expo-file-system` for persisting images on-device
+- TypeScript everywhere
 
 ## Getting started
 
-1. Install dependencies:
+1. **Install dependencies.**
 
    ```bash
    npm install
    ```
 
-2. Copy `.env.example` to `.env.local` and add your Anthropic API key:
+2. **Add your Anthropic API key.** Copy `.env.example` to `.env` and paste your key:
 
    ```bash
-   cp .env.example .env.local
-   # then edit .env.local and paste your key
+   cp .env.example .env
+   # edit .env and set EXPO_PUBLIC_ANTHROPIC_API_KEY
    ```
 
-   Get an API key at https://console.anthropic.com/.
+   Get a key at https://console.anthropic.com/.
 
-3. Run the dev server:
+3. **Run the app.**
 
    ```bash
-   npm run dev
-   ```
+   # iOS simulator (needs Xcode on a Mac)
+   npm run ios
 
-4. Open http://localhost:3000 in your browser. On mobile, add it to your home screen for a native-feeling experience.
+   # Android emulator (needs Android Studio)
+   npm run android
+
+   # Or run on your real device via Expo Go:
+   npm run start
+   # then scan the QR code with the Expo Go app
+   ```
 
 ## How it works
 
-- The client uploads an image (resized client-side to keep storage small) and posts the conversation history to `/api/chat`.
-- The API route calls Claude with a handyman-tuned system prompt and returns the text response.
-- For the first message in a new issue, the model emits a one-line `TITLE: ...` header that the app strips out and uses as the issue title on the home page.
-- Everything — issues, messages, images — is stored in `localStorage`. There is no backend database.
+- The user taps **New repair**, which opens the camera / photo library via `expo-image-picker`.
+- The picked image is resized to 1280 px on the long edge with `expo-image-manipulator`, then copied into `FileSystem.documentDirectory/handybot/` so it persists.
+- `lib/claude.ts` reads the image as base64, posts it to `https://api.anthropic.com/v1/messages` with a handyman-tuned system prompt, and returns the text response.
+- For the first message in a new issue, the model emits a one-line `TITLE: ...` header that the app strips and uses as the issue title on the home screen.
+- Issue metadata (messages, file URIs, timestamps) is stored in `AsyncStorage`; images live as JPEGs on the filesystem.
 
 ## Project layout
 
 ```
-app/
-  api/chat/route.ts      # Claude API endpoint (vision + text)
-  issues/new/page.tsx    # Upload a photo, create a new issue
-  issues/[id]/page.tsx   # Issue workspace (chat thread)
-  settings/page.tsx      # Sign out / delete account
-  page.tsx               # Home — list of issues
+app/                      # expo-router screens
+  _layout.tsx             # Stack navigator + theming
+  index.tsx               # Home — list of repairs
+  new.tsx                 # Upload a photo, create a new issue
+  issue/[id].tsx          # Issue workspace (chat thread)
+  settings.tsx            # Sign out / delete account
 components/
-  Chat.tsx               # Chat thread with image attachments
-  ImageUpload.tsx        # Camera/file picker with resizing
-  IssueCard.tsx          # Home-page issue card
-  Nav.tsx                # Top nav
+  IssueCard.tsx           # Home-screen issue row
+  MessageBubble.tsx       # Chat bubble with optional image
+  ImagePickerButton.tsx   # Camera/library sheet + preview
+  TypingIndicator.tsx     # Animated "..." while Claude thinks
+  PrimaryButton.tsx       # Shared button styles
 lib/
-  image.ts               # Client-side image resizing helpers
-  storage.ts             # localStorage wrappers
-  types.ts               # Shared types
+  claude.ts               # fetch-based Claude Messages API client
+  image.ts                # expo-image-picker + manipulator + FS helpers
+  storage.ts              # AsyncStorage wrappers + file cleanup
+  theme.ts                # colors, spacing, radii
+  types.ts                # Shared types
 ```
+
+## Important: API key security
+
+This MVP uses `EXPO_PUBLIC_ANTHROPIC_API_KEY`, which Expo bundles **into the client JavaScript**. That is only acceptable for local development. If you ship this app to the App Store or Play Store with a production key in the bundle, **anyone can extract it**.
+
+For a real launch you must:
+
+1. Stand up a tiny backend (Cloudflare Worker, Vercel function, Fly.io service — anything) that holds the Anthropic key as a server-side secret.
+2. Change `lib/claude.ts` so `sendChat` POSTs to your backend instead of directly to `api.anthropic.com`.
+3. Add a bit of per-user auth or rate limiting on that proxy so random strangers can't drain your key.
+
+The rest of the app doesn't need to change — `sendChat` is the only place that knows about the network.
 
 ## Notes and limitations
 
-- `localStorage` holds roughly 5–10 MB per origin. Images are automatically resized down to ~1024 px on the long edge and JPEG-compressed, but a heavy user will still hit the cap. For a real launch, swap the storage layer for a proper database + object store.
+- `AsyncStorage` is fine for a few hundred issues of text; images are stored as JPEG files on disk, not inside AsyncStorage, so you won't hit the 6 MB per-key limit easily.
 - The "account" is just a locally-generated ID. There is no real authentication.
 - HandyBot is not a licensed tradesperson — it will flag safety-critical work but always double-check before tackling anything electrical, gas, or structural.
+- Web builds work via `npm run web`, but camera capture is limited in the browser — for the full experience, run on a real phone.

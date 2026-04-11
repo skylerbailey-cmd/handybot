@@ -4,8 +4,8 @@ export interface ChatMessage {
   id: string;
   role: MessageRole;
   text: string;
-  /** Data URL of an image the user attached to this message, if any. */
-  imageUrl?: string;
+  /** Local file URI (file://...) to an image saved by expo-file-system. */
+  imageUri?: string;
   createdAt: number;
 }
 
@@ -18,8 +18,8 @@ export interface Issue {
   status: IssueStatus;
   createdAt: number;
   updatedAt: number;
-  /** Stored as a data URL for simple local-only persistence. */
-  coverImage?: string;
+  /** Local file URI used as the thumbnail on the home screen. */
+  coverImageUri?: string;
   messages: ChatMessage[];
 }
 
@@ -29,9 +29,10 @@ export interface User {
   createdAt: number;
 }
 
-/** Shape sent to the /api/chat route. */
+/** Message shape sent to the Claude client (base64 is read at send time). */
 export interface ChatRequestMessage {
   role: MessageRole;
   text: string;
-  imageDataUrl?: string;
+  imageBase64?: string;
+  imageMediaType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
 }

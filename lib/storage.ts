@@ -1,63 +1,71 @@
-"use client";
-
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as FileSystem from "expo-file-system";
 import type { Issue, User } from "./types";
 
-const ISSUES_KEY = "handyman:issues";
-const USER_KEY = "handyman:user";
+const ISSUES_KEY = "handybot:issues";
+const USER_KEY = "handybot:user";
 
-function isBrowser() {
-  return typeof window !== "undefined";
-}
-
-export function loadIssues(): Issue[] {
-  if (!isBrowser()) return [];
+export async function loadIssues(): Promise<Issue[]> {
   try {
-    const raw = window.localStorage.getItem(ISSUES_KEY);
+    const raw = await AsyncStorage.getItem(ISSUES_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as Issue[];
     return Array.isArray(parsed) ? parsed : [];
-  } catch {
+  } catch (err) {
+    console.error("loadIssues failed", err);
     return [];
   }
 }
 
-export function saveIssues(issues: Issue[]) {
-  if (!isBrowser()) return;
-  try {
-    window.localStorage.setItem(ISSUES_KEY, JSON.stringify(issues));
-  } catch (err) {
-    // localStorage can be full with images; surface a friendly error.
-    console.error("Failed to save issues to localStorage", err);
-    throw new Error(
-      "Your browser's storage is full. Try deleting an older issue to free up space."
+export async function saveIssues(issues: Issue[]): Promise<void> {
+  await AsyncStorage.setItem(ISSUES_KEY, JSON.stringify(issues));
+}
+
+export async function getIssue(id: string): Promise<Issue | undefined> {
+  const all = await loadIssues();
+  return all.find((i) => i.id === id);
+}
+
+export async function upsertIssue(issue: Issue): Promise<void> {
+  const all = await loadIssues();
+  const idx = all.findIndex((i) => i.id === issue.id);
+  if (idx >= 0) {
+    all[idx] = issue;
+    // Keep most-recently-updated at the top.
+    all.sort((a, b) => b.updatedAt - a.updatedAt);
+  } else {
+    all.unshift(issue);
+  }
+  await saveIssues(all);
+}
+
+export async function deleteIssue(id: string): Promise<void> {
+  const all = await loadIssues();
+  const target = all.find((i) => i.id === id);
+  await saveIssues(all.filter((i) => i.id !== id));
+
+  // Best-effort cleanup of any image files associated with this issue.
+  if (target) {
+    const files: string[] = [];
+    if (target.coverImageUri) files.push(target.coverImageUri);
+    for (const m of target.messages) {
+      if (m.imageUri) files.push(m.imageUri);
+    }
+    await Promise.all(
+      files.map(async (uri) => {
+        try {
+          await FileSystem.deleteAsync(uri, { idempotent: true });
+        } catch {
+          /* ignore */
+        }
+      })
     );
   }
 }
 
-export function getIssue(id: string): Issue | undefined {
-  return loadIssues().find((i) => i.id === id);
-}
-
-export function upsertIssue(issue: Issue) {
-  const all = loadIssues();
-  const idx = all.findIndex((i) => i.id === issue.id);
-  if (idx >= 0) {
-    all[idx] = issue;
-  } else {
-    all.unshift(issue);
-  }
-  saveIssues(all);
-}
-
-export function deleteIssue(id: string) {
-  const all = loadIssues().filter((i) => i.id !== id);
-  saveIssues(all);
-}
-
-export function loadUser(): User | null {
-  if (!isBrowser()) return null;
+export async function loadUser(): Promise<User | null> {
   try {
-    const raw = window.localStorage.getItem(USER_KEY);
+    const raw = await AsyncStorage.getItem(USER_KEY);
     if (!raw) return null;
     return JSON.parse(raw) as User;
   } catch {
@@ -65,31 +73,40 @@ export function loadUser(): User | null {
   }
 }
 
-export function saveUser(user: User) {
-  if (!isBrowser()) return;
-  window.localStorage.setItem(USER_KEY, JSON.stringify(user));
+export async function saveUser(user: User): Promise<void> {
+  await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
 }
 
-export function clearUser() {
-  if (!isBrowser()) return;
-  window.localStorage.removeItem(USER_KEY);
+export async function clearUser(): Promise<void> {
+  await AsyncStorage.removeItem(USER_KEY);
 }
 
-export function wipeAllData() {
-  if (!isBrowser()) return;
-  window.localStorage.removeItem(ISSUES_KEY);
-  window.localStorage.removeItem(USER_KEY);
+export async function wipeAllData(): Promise<void> {
+  await AsyncStorage.multiRemove([ISSUES_KEY, USER_KEY]);
+  const dir = `${FileSystem.documentDirectory}handybot/`;
+  try {
+    await FileSystem.deleteAsync(dir, { idempotent: true });
+  } catch {
+    /* ignore */
+  }
 }
 
-export function ensureUser(): User {
-  let user = loadUser();
+function generateId(): string {
+  // Random ID — React Native doesn't always have `crypto.randomUUID`.
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export async function ensureUser(): Promise<User> {
+  let user = await loadUser();
   if (!user) {
     user = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       name: "You",
       createdAt: Date.now(),
     };
-    saveUser(user);
+    await saveUser(user);
   }
   return user;
 }
+
+export { generateId };
