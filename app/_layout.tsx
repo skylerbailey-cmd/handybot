@@ -1,10 +1,18 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { ensureNotificationsConfigured } from "@/lib/reminders";
 import { colors } from "@/lib/theme";
 
 export default function RootLayout() {
+  useEffect(() => {
+    ensureNotificationsConfigured().catch(() => {
+      /* ignore — we'll re-prompt when the user opens Reminders */
+    });
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
@@ -27,6 +35,7 @@ export default function RootLayout() {
             name="issue/[id]"
             options={{ title: "Repair", headerBackTitle: "Back" }}
           />
+          <Stack.Screen name="reminders" options={{ title: "Reminders" }} />
           <Stack.Screen name="settings" options={{ title: "Settings" }} />
         </Stack>
       </SafeAreaProvider>

@@ -10,6 +10,7 @@ import type {
   RiskAssessment,
   RiskCategory,
   RiskSeverity,
+  SuggestedReminder,
   ToolItem,
 } from "./types";
 
@@ -35,6 +36,7 @@ Guidelines:
 - Never invent details you cannot see. If you need a closer look, say so in the opening_message and still produce your best-effort plan.
 - Provide a realistic estimated_savings_usd reflecting the LABOR cost only that hiring a licensed pro (handyman, plumber, electrician, etc.) would charge at typical US market rates. Do NOT include materials in this number — the user is buying those. Examples of reasonable ranges: swap an outlet or light switch ~$125-200, fix a dripping faucet ~$150-250, patch drywall ~$200-400, replace a running toilet fill valve ~$150-250, unclog a kitchen drain ~$150-300, replace a garbage disposal ~$200-400, minor roof flashing repair ~$300-600. Set to 0 only if the photo does not actually show something that needs fixing.
 - Set the \`risk\` field ONLY when the work involves a genuine physical hazard (live electrical, pressurized water lines, gas, working at height, chemicals, structural, fire risk, or sharp tools/materials). Choose the category that matches the primary hazard. Pick severity based on how likely serious harm is if the user makes a mistake: low = minor shock / small leak / scrape, medium = significant property damage or injury potential, high = risk of fire, electrocution, flooding, gas leak, structural collapse, or serious falls. Set call_a_pro_recommended=true when the severity is medium/high AND a licensed pro would substantially reduce the risk. Omit the risk field entirely for purely cosmetic / low-stakes repairs. The user can always proceed either way — this is advisory.
+- If the fix has an obvious recurring-maintenance follow-up (changing a filter every few months, flushing a water heater annually, etc.), populate suggested_reminders with 1-3 items the user could enable after the repair is done. Omit the field for one-off fixes where no recurring task makes sense.
 
 You MUST call the create_repair_plan tool. Do not reply with plain text.`;
 
@@ -166,6 +168,32 @@ const CREATE_PLAN_TOOL = {
         description:
           "Short, specific safety warnings. Empty array if none apply.",
         items: { type: "string" },
+      },
+      suggested_reminders: {
+        type: "array",
+        description:
+          "Optional recurring-maintenance reminders that make sense as follow-ups to this specific repair (e.g. 'Change HVAC filter every 3 months'). Include 0-3 items. Omit entirely if no recurring follow-up applies.",
+        items: {
+          type: "object",
+          properties: {
+            title: { type: "string", description: "Short imperative title." },
+            description: {
+              type: "string",
+              description: "1-2 sentence explanation of what to do.",
+            },
+            frequency_days: {
+              type: "integer",
+              description:
+                "Recurrence period in days (e.g. 30, 90, 180, 365).",
+            },
+            icon: {
+              type: "string",
+              description:
+                "Single emoji best representing this task (e.g. 🌬 for filters, 🚿 for water heater).",
+            },
+          },
+          required: ["title", "description", "frequency_days"],
+        },
       },
       risk: {
         type: "object",
@@ -415,7 +443,28 @@ interface RawPlanInput {
     rationale?: string;
     call_a_pro_recommended?: boolean;
   };
+  suggested_reminders?: Array<{
+    title: string;
+    description: string;
+    frequency_days: number;
+    icon?: string;
+  }>;
   opening_message: string;
+}
+
+function normalizeSuggestedReminders(
+  raw: RawPlanInput["suggested_reminders"]
+): SuggestedReminder[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const list = raw
+    .map((r) => ({
+      title: String(r.title ?? "").trim(),
+      description: String(r.description ?? "").trim(),
+      frequencyDays: Number(r.frequency_days) || 0,
+      icon: String(r.icon ?? "🛠").trim().slice(0, 4) || "🛠",
+    }))
+    .filter((r) => r.title && r.frequencyDays > 0);
+  return list.length > 0 ? list : undefined;
 }
 
 function normalizeRisk(raw: RawPlanInput["risk"]): RiskAssessment | undefined {
@@ -520,6 +569,7 @@ function parsePlan(raw: RawPlanInput): GeneratedPlan {
         ? raw.safety_notes.map((s) => String(s)).filter(Boolean)
         : [],
       risk: normalizeRisk(raw.risk),
+      suggestedReminders: normalizeSuggestedReminders(raw.suggested_reminders),
     },
   };
 }

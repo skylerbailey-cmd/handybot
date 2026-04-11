@@ -3,6 +3,7 @@ import ChecklistRow from "./ChecklistRow";
 import DifficultyBadge from "./DifficultyBadge";
 import InteractiveStepper from "./InteractiveStepper";
 import RiskCard from "./RiskCard";
+import SuggestedRemindersCard from "./SuggestedRemindersCard";
 import {
   colors,
   formatDuration,
@@ -133,6 +134,13 @@ export default function PlanView({
             onSetStepCompleted={onSetStepCompleted}
           />
         </Section>
+      )}
+
+      {allDone && plan.suggestedReminders && plan.suggestedReminders.length > 0 && (
+        <SuggestedRemindersCard
+          suggestions={plan.suggestedReminders}
+          sourceIssueId={issue.id}
+        />
       )}
 
       {onRegenerate && (

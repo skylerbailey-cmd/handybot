@@ -37,6 +37,13 @@
           "photosPermission": "HandyBot needs photo access so you can attach pictures to your repair conversations.",
           "cameraPermission": "HandyBot needs your camera to take photos of things that need fixing."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#ea580c",
+          "defaultChannel": "maintenance"
+        }
       ]
     ],
     "experiments": {

@@ -106,6 +106,15 @@ export interface PlanStep {
   completed: boolean;
 }
 
+export interface SuggestedReminder {
+  title: string;
+  description: string;
+  /** How often the reminder should repeat, in days. */
+  frequencyDays: number;
+  /** Single-character emoji icon. */
+  icon: string;
+}
+
 export interface RepairPlan {
   difficulty: Difficulty;
   /** Total estimated time across all steps, in minutes. */
@@ -123,6 +132,54 @@ export interface RepairPlan {
   safetyNotes: string[];
   /** Optional hazard assessment. Only set for repairs with real risk. */
   risk?: RiskAssessment;
+  /**
+   * Optional recurring-maintenance reminders Claude thinks make sense
+   * as follow-ups to this specific repair. Shown to the user when they
+   * complete the repair so a one-time fix can become a lasting habit.
+   */
+  suggestedReminders?: SuggestedReminder[];
+}
+
+export type ReminderCategory =
+  | "hvac"
+  | "plumbing"
+  | "exterior"
+  | "interior"
+  | "appliance"
+  | "safety"
+  | "yard"
+  | "general";
+
+export interface MaintenanceTemplate {
+  /** Stable id so enabled state can be looked up later. */
+  id: string;
+  title: string;
+  description: string;
+  category: ReminderCategory;
+  /** Single-character emoji. */
+  icon: string;
+  /** How often this task should recur, in days. */
+  frequencyDays: number;
+}
+
+export interface Reminder {
+  id: string;
+  /** If this reminder was created from a prebuilt template. */
+  templateId?: string;
+  title: string;
+  description?: string;
+  icon: string;
+  category: ReminderCategory;
+  frequencyDays: number;
+  /** Unix ms timestamp when this reminder should fire next. */
+  nextDue: number;
+  /** Whether local notifications are currently scheduled. */
+  enabled: boolean;
+  /** Identifier returned by expo-notifications when scheduled. */
+  notificationId?: string;
+  /** Optional link back to the repair this reminder was created from. */
+  sourceIssueId?: string;
+  createdAt: number;
 }
 
 export interface Issue {

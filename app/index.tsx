@@ -70,11 +70,18 @@ export default function HomeScreen() {
       <Stack.Screen
         options={{
           headerRight: () => (
-            <Link href="/settings" asChild>
-              <Pressable hitSlop={10} style={styles.headerBtn}>
-                <Text style={styles.headerBtnText}>⚙︎</Text>
-              </Pressable>
-            </Link>
+            <View style={styles.headerActions}>
+              <Link href="/reminders" asChild>
+                <Pressable hitSlop={10} style={styles.headerBtn}>
+                  <Text style={styles.headerBtnText}>🔔</Text>
+                </Pressable>
+              </Link>
+              <Link href="/settings" asChild>
+                <Pressable hitSlop={10} style={styles.headerBtn}>
+                  <Text style={styles.headerBtnText}>⚙︎</Text>
+                </Pressable>
+              </Link>
+            </View>
           ),
         }}
       />
@@ -246,11 +253,16 @@ const styles = StyleSheet.create({
     textAlign: "center",
     overflow: "hidden",
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
   headerBtn: {
     paddingHorizontal: spacing.sm,
   },
   headerBtnText: {
-    fontSize: 22,
+    fontSize: 20,
     color: colors.textMuted,
   },
   skeleton: {
