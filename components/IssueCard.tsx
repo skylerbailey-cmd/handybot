@@ -1,7 +1,13 @@
 import { Link } from "expo-router";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import DifficultyBadge from "./DifficultyBadge";
-import { colors, formatDuration, radius, spacing } from "@/lib/theme";
+import {
+  colors,
+  formatDuration,
+  formatMoney,
+  radius,
+  spacing,
+} from "@/lib/theme";
 import type { Issue } from "@/lib/types";
 
 function timeAgo(ts: number) {
@@ -17,11 +23,39 @@ function timeAgo(ts: number) {
   return new Date(ts).toLocaleDateString();
 }
 
+const RISK_ICON: Record<string, string> = {
+  electrical: "⚡",
+  plumbing: "🚰",
+  gas: "🔥",
+  structural: "🏗",
+  height: "🪜",
+  chemical: "⚗",
+  fire: "🔥",
+  sharps: "🔪",
+  general: "⚠︎",
+};
+
+const RISK_BG: Record<string, string> = {
+  low: "#fef3c7",
+  medium: "#ffedd5",
+  high: "#fee2e2",
+};
+
+const RISK_FG: Record<string, string> = {
+  low: "#b45309",
+  medium: "#c2410c",
+  high: "#b91c1c",
+};
+
 export default function IssueCard({ issue }: { issue: Issue }) {
   const stepsDone = issue.plan.steps.filter((s) => s.completed).length;
   const stepsTotal = issue.plan.steps.length;
   const progressPct =
     stepsTotal === 0 ? 0 : Math.round((stepsDone / stepsTotal) * 100);
+  const isComplete =
+    issue.status === "resolved" || (stepsTotal > 0 && stepsDone === stepsTotal);
+  const savingsLabel = formatMoney(issue.plan.estimatedSavingsUsd ?? 0);
+  const risk = issue.plan.risk;
 
   return (
     <Link href={`/issue/${issue.id}`} asChild>
@@ -37,6 +71,20 @@ export default function IssueCard({ issue }: { issue: Issue }) {
           ) : (
             <View style={styles.thumbPlaceholder}>
               <Text style={styles.thumbPlaceholderText}>📷</Text>
+            </View>
+          )}
+          {risk && (
+            <View
+              style={[
+                styles.riskBadge,
+                { backgroundColor: RISK_BG[risk.severity] },
+              ]}
+            >
+              <Text
+                style={[styles.riskBadgeText, { color: RISK_FG[risk.severity] }]}
+              >
+                {RISK_ICON[risk.category] ?? "⚠︎"}
+              </Text>
             </View>
           )}
         </View>
@@ -77,7 +125,26 @@ export default function IssueCard({ issue }: { issue: Issue }) {
             />
           </View>
 
-          <Text style={styles.timestamp}>Updated {timeAgo(issue.updatedAt)}</Text>
+          <View style={styles.footerRow}>
+            <Text style={styles.timestamp}>Updated {timeAgo(issue.updatedAt)}</Text>
+            {savingsLabel.length > 0 && (
+              <View
+                style={[
+                  styles.savingsChip,
+                  isComplete && styles.savingsChipComplete,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.savingsChipText,
+                    isComplete && styles.savingsChipTextComplete,
+                  ]}
+                >
+                  {isComplete ? `✓ Saved ${savingsLabel}` : `Save ~${savingsLabel}`}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
       </Pressable>
     </Link>
@@ -105,6 +172,22 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     overflow: "hidden",
     backgroundColor: "#f5f5f4",
+    position: "relative",
+  },
+  riskBadge: {
+    position: "absolute",
+    top: 4,
+    left: 4,
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 4,
+    borderRadius: radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  riskBadgeText: {
+    fontSize: 12,
+    fontWeight: "800",
   },
   thumbImage: {
     width: "100%",
@@ -177,8 +260,31 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand,
   },
   timestamp: {
-    marginTop: 4,
     fontSize: 11,
     color: colors.textSubtle,
+  },
+  footerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 4,
+    gap: spacing.sm,
+  },
+  savingsChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: "#f5f5f4",
+  },
+  savingsChipComplete: {
+    backgroundColor: colors.successBg,
+  },
+  savingsChipText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.textMuted,
+  },
+  savingsChipTextComplete: {
+    color: colors.success,
   },
 });

@@ -51,3 +51,13 @@ export function formatDuration(minutes: number): string {
   if (mins === 0) return `${hours} hr`;
   return `${hours}h ${mins}m`;
 }
+
+/**
+ * Formats a USD amount as a whole-dollar string with thousands separators.
+ * Returns an empty string for zero/negative values so callers can skip
+ * rendering the chip entirely.
+ */
+export function formatMoney(usd: number | undefined | null): string {
+  if (!usd || usd <= 0) return "";
+  return `$${Math.round(usd).toLocaleString("en-US")}`;
+}

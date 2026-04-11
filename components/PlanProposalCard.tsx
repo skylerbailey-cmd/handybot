@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import DifficultyBadge from "./DifficultyBadge";
-import { colors, formatDuration, radius, spacing } from "@/lib/theme";
+import { colors, formatDuration, formatMoney, radius, spacing } from "@/lib/theme";
 import type { PlanProposal } from "@/lib/types";
 
 interface Props {
@@ -41,6 +41,12 @@ export default function PlanProposalCard({
   }
   if (proposal.newTotalMinutes) {
     summaryChips.push(`New time: ${formatDuration(proposal.newTotalMinutes)}`);
+  }
+  if (proposal.newTotalSavingsUsd !== undefined) {
+    const label = formatMoney(proposal.newTotalSavingsUsd);
+    summaryChips.push(
+      label ? `New savings: ${label}` : "Savings updated"
+    );
   }
 
   const hasDetailSections =

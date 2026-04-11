@@ -2,7 +2,14 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import ChecklistRow from "./ChecklistRow";
 import DifficultyBadge from "./DifficultyBadge";
 import InteractiveStepper from "./InteractiveStepper";
-import { colors, formatDuration, radius, spacing } from "@/lib/theme";
+import RiskCard from "./RiskCard";
+import {
+  colors,
+  formatDuration,
+  formatMoney,
+  radius,
+  spacing,
+} from "@/lib/theme";
 import type { Issue } from "@/lib/types";
 
 interface Props {
@@ -23,12 +30,19 @@ export default function PlanView({
   regenerating,
 }: Props) {
   const { plan } = issue;
+  const stepsTotal = plan.steps.length;
+  const stepsDone = plan.steps.filter((s) => s.completed).length;
+  const allDone = stepsTotal > 0 && stepsDone === stepsTotal;
+  const savingsAmount = plan.estimatedSavingsUsd ?? 0;
+  const savingsLabel = formatMoney(savingsAmount);
 
   return (
     <ScrollView
       contentContainerStyle={styles.scroll}
       showsVerticalScrollIndicator={false}
     >
+      {plan.risk && <RiskCard risk={plan.risk} />}
+
       <View style={styles.headerCard}>
         <Text style={styles.summary}>{issue.summary}</Text>
 
@@ -36,6 +50,17 @@ export default function PlanView({
           <DifficultyBadge difficulty={plan.difficulty} />
           <MetaChip icon="⏱" label={formatDuration(plan.estimatedMinutes)} />
           <MetaChip icon="📋" label={`${plan.steps.length} steps`} />
+          {savingsLabel.length > 0 && (
+            <MetaChip
+              icon="💰"
+              label={
+                allDone
+                  ? `Saved ${savingsLabel}`
+                  : `Save ~${savingsLabel}`
+              }
+              highlight={allDone}
+            />
+          )}
         </View>
       </View>
 
@@ -104,6 +129,7 @@ export default function PlanView({
         >
           <InteractiveStepper
             steps={plan.steps}
+            savingsAmount={savingsAmount}
             onSetStepCompleted={onSetStepCompleted}
           />
         </Section>
@@ -136,11 +162,21 @@ export default function PlanView({
   );
 }
 
-function MetaChip({ icon, label }: { icon: string; label: string }) {
+function MetaChip({
+  icon,
+  label,
+  highlight,
+}: {
+  icon: string;
+  label: string;
+  highlight?: boolean;
+}) {
   return (
-    <View style={styles.chip}>
+    <View style={[styles.chip, highlight && styles.chipHighlight]}>
       <Text style={styles.chipIcon}>{icon}</Text>
-      <Text style={styles.chipLabel}>{label}</Text>
+      <Text style={[styles.chipLabel, highlight && styles.chipLabelHighlight]}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -205,6 +241,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5f5f4",
     borderRadius: radius.pill,
   },
+  chipHighlight: {
+    backgroundColor: colors.successBg,
+  },
   chipIcon: {
     fontSize: 13,
   },
@@ -212,6 +251,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: colors.textMuted,
+  },
+  chipLabelHighlight: {
+    color: colors.success,
   },
   section: {
     marginTop: spacing.lg,

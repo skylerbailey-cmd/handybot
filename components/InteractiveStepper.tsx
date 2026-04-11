@@ -6,11 +6,13 @@ import {
   Text,
   View,
 } from "react-native";
-import { colors, formatDuration, radius, spacing } from "@/lib/theme";
+import { colors, formatDuration, formatMoney, radius, spacing } from "@/lib/theme";
 import type { PlanStep } from "@/lib/types";
 
 interface Props {
   steps: PlanStep[];
+  /** USD saved by doing this repair themselves vs hiring a pro. */
+  savingsAmount?: number;
   /** Set a specific step's completed flag. */
   onSetStepCompleted: (stepId: string, completed: boolean) => void;
 }
@@ -27,6 +29,7 @@ interface Props {
  */
 export default function InteractiveStepper({
   steps,
+  savingsAmount,
   onSetStepCompleted,
 }: Props) {
   const total = steps.length;
@@ -250,6 +253,13 @@ export default function InteractiveStepper({
           <Text style={styles.completeBannerTitle}>
             🎉 All steps complete!
           </Text>
+          {savingsAmount && savingsAmount > 0 ? (
+            <View style={styles.savingsBadge}>
+              <Text style={styles.savingsBadgeText}>
+                You saved {formatMoney(savingsAmount)} fixing this yourself
+              </Text>
+            </View>
+          ) : null}
           <Text style={styles.completeBannerBody}>
             Nice work. Mark this repair as resolved from the overflow menu when
             you&apos;re happy with the result.
@@ -487,16 +497,27 @@ const styles = StyleSheet.create({
     borderColor: "#a7f3d0",
     backgroundColor: "#ecfdf5",
     alignItems: "center",
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   completeBannerTitle: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 18,
+    fontWeight: "800",
     color: "#065f46",
   },
   completeBannerBody: {
     fontSize: 13,
     color: "#047857",
     textAlign: "center",
+  },
+  savingsBadge: {
+    backgroundColor: "#065f46",
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md + 2,
+    paddingVertical: spacing.sm,
+  },
+  savingsBadgeText: {
+    color: "#ffffff",
+    fontWeight: "800",
+    fontSize: 14,
   },
 });

@@ -7,6 +7,9 @@ import type {
   PlanProposal,
   PlanStep,
   RepairPlan,
+  RiskAssessment,
+  RiskCategory,
+  RiskSeverity,
   ToolItem,
 } from "./types";
 
@@ -30,6 +33,8 @@ Guidelines:
 - If the work is dangerous, structural, gas, high-voltage, or involves potable water lines you are unsure of, set difficulty to "Call a pro" and keep the steps focused on making the area safe until a professional arrives.
 - Always populate safety_notes when electricity, water shutoff, sharp edges, heights, or chemicals are involved.
 - Never invent details you cannot see. If you need a closer look, say so in the opening_message and still produce your best-effort plan.
+- Provide a realistic estimated_savings_usd reflecting the LABOR cost only that hiring a licensed pro (handyman, plumber, electrician, etc.) would charge at typical US market rates. Do NOT include materials in this number — the user is buying those. Examples of reasonable ranges: swap an outlet or light switch ~$125-200, fix a dripping faucet ~$150-250, patch drywall ~$200-400, replace a running toilet fill valve ~$150-250, unclog a kitchen drain ~$150-300, replace a garbage disposal ~$200-400, minor roof flashing repair ~$300-600. Set to 0 only if the photo does not actually show something that needs fixing.
+- Set the \`risk\` field ONLY when the work involves a genuine physical hazard (live electrical, pressurized water lines, gas, working at height, chemicals, structural, fire risk, or sharp tools/materials). Choose the category that matches the primary hazard. Pick severity based on how likely serious harm is if the user makes a mistake: low = minor shock / small leak / scrape, medium = significant property damage or injury potential, high = risk of fire, electrocution, flooding, gas leak, structural collapse, or serious falls. Set call_a_pro_recommended=true when the severity is medium/high AND a licensed pro would substantially reduce the risk. Omit the risk field entirely for purely cosmetic / low-stakes repairs. The user can always proceed either way — this is advisory.
 
 You MUST call the create_repair_plan tool. Do not reply with plain text.`;
 
@@ -82,6 +87,11 @@ const CREATE_PLAN_TOOL = {
         type: "integer",
         description:
           "Total realistic time to complete the repair in minutes, including setup and cleanup.",
+      },
+      estimated_savings_usd: {
+        type: "integer",
+        description:
+          "Realistic LABOR cost in USD that a licensed professional would charge at typical US market rates to do this repair. Does NOT include materials (the user buys their own). Use a single conservative point estimate. Set to 0 only if the image does not show something that needs fixing.",
       },
       tools: {
         type: "array",
@@ -157,6 +167,55 @@ const CREATE_PLAN_TOOL = {
           "Short, specific safety warnings. Empty array if none apply.",
         items: { type: "string" },
       },
+      risk: {
+        type: "object",
+        description:
+          "Hazard assessment for this repair. Include ONLY for work with genuine physical risk (live electrical, pressurized water, gas, heights, chemicals, structural, fire, sharps). Omit entirely for cosmetic / low-stakes work.",
+        properties: {
+          severity: {
+            type: "string",
+            enum: ["low", "medium", "high"],
+            description:
+              "Likelihood of serious harm if the user makes a mistake.",
+          },
+          category: {
+            type: "string",
+            enum: [
+              "electrical",
+              "plumbing",
+              "gas",
+              "structural",
+              "height",
+              "chemical",
+              "fire",
+              "sharps",
+              "general",
+            ],
+            description: "Primary hazard type.",
+          },
+          headline: {
+            type: "string",
+            description: "3-5 word label like 'Live 120V wiring'.",
+          },
+          rationale: {
+            type: "string",
+            description:
+              "1-2 plain-language sentences explaining the specific hazard.",
+          },
+          call_a_pro_recommended: {
+            type: "boolean",
+            description:
+              "True if a licensed pro is strongly recommended for safety. This is advisory — the user can still proceed.",
+          },
+        },
+        required: [
+          "severity",
+          "category",
+          "headline",
+          "rationale",
+          "call_a_pro_recommended",
+        ],
+      },
       opening_message: {
         type: "string",
         description:
@@ -168,6 +227,7 @@ const CREATE_PLAN_TOOL = {
       "summary",
       "difficulty",
       "estimated_minutes",
+      "estimated_savings_usd",
       "tools",
       "materials",
       "steps",
@@ -242,6 +302,11 @@ const PROPOSE_UPDATES_TOOL = {
         type: "integer",
         description:
           "Include only if the overall time estimate should change based on the new information.",
+      },
+      new_total_savings_usd: {
+        type: "integer",
+        description:
+          "Include only if the overall DIY savings estimate should change based on the new scope (labor cost only, same rules as create_repair_plan).",
       },
     },
     required: ["rationale"],
@@ -338,11 +403,55 @@ interface RawPlanInput {
   summary: string;
   difficulty: string;
   estimated_minutes: number;
+  estimated_savings_usd: number;
   tools: Array<{ name: string; required: boolean }>;
   materials: Array<{ name: string; quantity: string; notes?: string }>;
   steps: Array<{ title: string; detail: string; estimated_minutes?: number }>;
   safety_notes: string[];
+  risk?: {
+    severity?: string;
+    category?: string;
+    headline?: string;
+    rationale?: string;
+    call_a_pro_recommended?: boolean;
+  };
   opening_message: string;
+}
+
+function normalizeRisk(raw: RawPlanInput["risk"]): RiskAssessment | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const headline = String(raw.headline ?? "").trim();
+  const rationale = String(raw.rationale ?? "").trim();
+  if (!headline && !rationale) return undefined;
+
+  const severityOptions: RiskSeverity[] = ["low", "medium", "high"];
+  const severity =
+    severityOptions.find((s) => s === String(raw.severity ?? "").toLowerCase()) ??
+    "medium";
+
+  const categoryOptions: RiskCategory[] = [
+    "electrical",
+    "plumbing",
+    "gas",
+    "structural",
+    "height",
+    "chemical",
+    "fire",
+    "sharps",
+    "general",
+  ];
+  const category =
+    categoryOptions.find(
+      (c) => c === String(raw.category ?? "").toLowerCase()
+    ) ?? "general";
+
+  return {
+    severity,
+    category,
+    headline: headline || category.charAt(0).toUpperCase() + category.slice(1) + " hazard",
+    rationale,
+    callAProRecommended: Boolean(raw.call_a_pro_recommended),
+  };
 }
 
 interface ClaudeResponse {
@@ -390,6 +499,12 @@ function parsePlan(raw: RawPlanInput): GeneratedPlan {
     completed: false,
   }));
 
+  const estimatedSavingsUsd =
+    typeof raw.estimated_savings_usd === "number" &&
+    raw.estimated_savings_usd >= 0
+      ? Math.round(raw.estimated_savings_usd)
+      : 0;
+
   return {
     title: String(raw.title || "New repair").trim(),
     summary: String(raw.summary || "").trim(),
@@ -397,12 +512,14 @@ function parsePlan(raw: RawPlanInput): GeneratedPlan {
     plan: {
       difficulty: normalizeDifficulty(raw.difficulty),
       estimatedMinutes: Number(raw.estimated_minutes) || 0,
+      estimatedSavingsUsd,
       tools,
       materials,
       steps,
       safetyNotes: Array.isArray(raw.safety_notes)
         ? raw.safety_notes.map((s) => String(s)).filter(Boolean)
         : [],
+      risk: normalizeRisk(raw.risk),
     },
   };
 }
@@ -452,6 +569,14 @@ function formatPlanForContext(plan: RepairPlan): string {
   const lines: string[] = [];
   lines.push(`Difficulty: ${plan.difficulty}`);
   lines.push(`Estimated time: ${plan.estimatedMinutes} minutes`);
+  if (plan.estimatedSavingsUsd > 0) {
+    lines.push(`Estimated DIY savings vs hiring a pro: $${plan.estimatedSavingsUsd}`);
+  }
+  if (plan.risk) {
+    lines.push(
+      `Risk: ${plan.risk.severity} ${plan.risk.category} — ${plan.risk.headline}${plan.risk.callAProRecommended ? " (pro recommended)" : ""}`
+    );
+  }
   if (plan.tools.length) {
     lines.push(
       `Tools: ${plan.tools.map((t) => `${t.name}${t.required ? "" : " (optional)"}`).join(", ")}`
@@ -494,6 +619,7 @@ interface RawProposalInput {
   new_safety_notes?: string[];
   new_difficulty?: string;
   new_total_minutes?: number;
+  new_total_savings_usd?: number;
 }
 
 function parseProposal(raw: RawProposalInput): PlanProposal | undefined {
@@ -536,6 +662,12 @@ function parseProposal(raw: RawProposalInput): PlanProposal | undefined {
   if (typeof raw.new_total_minutes === "number" && raw.new_total_minutes > 0) {
     proposal.newTotalMinutes = raw.new_total_minutes;
   }
+  if (
+    typeof raw.new_total_savings_usd === "number" &&
+    raw.new_total_savings_usd >= 0
+  ) {
+    proposal.newTotalSavingsUsd = Math.round(raw.new_total_savings_usd);
+  }
 
   // If the proposal has no actual changes (just a rationale), drop it.
   const hasChanges =
@@ -544,7 +676,8 @@ function parseProposal(raw: RawProposalInput): PlanProposal | undefined {
     !!proposal.newMaterials ||
     !!proposal.newSafetyNotes ||
     !!proposal.newDifficulty ||
-    !!proposal.newTotalMinutes;
+    !!proposal.newTotalMinutes ||
+    proposal.newTotalSavingsUsd !== undefined;
   return hasChanges ? proposal : undefined;
 }
 
@@ -635,6 +768,8 @@ export function applyProposalToPlan(
   return {
     difficulty: proposal.newDifficulty ?? plan.difficulty,
     estimatedMinutes: proposal.newTotalMinutes ?? plan.estimatedMinutes,
+    estimatedSavingsUsd:
+      proposal.newTotalSavingsUsd ?? plan.estimatedSavingsUsd,
     tools: [...plan.tools, ...newToolItems],
     materials: [...plan.materials, ...newMaterialItems],
     steps: [...plan.steps, ...newStepItems],

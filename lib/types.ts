@@ -32,6 +32,7 @@ export interface PlanProposal {
   newSafetyNotes?: string[];
   newDifficulty?: Difficulty;
   newTotalMinutes?: number;
+  newTotalSavingsUsd?: number;
   status: ProposalStatus;
 }
 
@@ -49,6 +50,36 @@ export interface ChatMessage {
 export type IssueStatus = "in_progress" | "resolved";
 
 export type Difficulty = "Easy" | "Medium" | "Hard" | "Call a pro";
+
+export type RiskSeverity = "low" | "medium" | "high";
+
+export type RiskCategory =
+  | "electrical"
+  | "plumbing"
+  | "gas"
+  | "structural"
+  | "height"
+  | "chemical"
+  | "fire"
+  | "sharps"
+  | "general";
+
+/**
+ * Specific hazard assessment for the repair. Present when the work
+ * involves real physical risk (live wiring, pressurized water, gas,
+ * working at height, etc.). The user is still allowed to proceed — this
+ * is advisory, not blocking.
+ */
+export interface RiskAssessment {
+  severity: RiskSeverity;
+  category: RiskCategory;
+  /** Short label, e.g. "Live 120V wiring". */
+  headline: string;
+  /** 1-2 plain-language sentences explaining the specific hazard. */
+  rationale: string;
+  /** When true, the UI displays a "Call a pro" recommendation prominently. */
+  callAProRecommended: boolean;
+}
 
 export interface ToolItem {
   id: string;
@@ -79,10 +110,19 @@ export interface RepairPlan {
   difficulty: Difficulty;
   /** Total estimated time across all steps, in minutes. */
   estimatedMinutes: number;
+  /**
+   * Estimated labor cost in USD of hiring a licensed professional
+   * (handyman, plumber, electrician, etc.) to do this repair. Does NOT
+   * include materials, since the user is buying those. Used throughout
+   * the UI to show how much the user saves by doing it themselves.
+   */
+  estimatedSavingsUsd: number;
   tools: ToolItem[];
   materials: MaterialItem[];
   steps: PlanStep[];
   safetyNotes: string[];
+  /** Optional hazard assessment. Only set for repairs with real risk. */
+  risk?: RiskAssessment;
 }
 
 export interface Issue {
