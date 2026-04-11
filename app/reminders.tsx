@@ -1,4 +1,4 @@
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -28,9 +28,11 @@ type TabKey = "active" | "suggested";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export default function RemindersScreen() {
+  const { highlight } = useLocalSearchParams<{ highlight?: string }>();
   const [reminders, setReminders] = useState<Reminder[] | null>(null);
   const [tab, setTab] = useState<TabKey>("active");
   const [permissionDenied, setPermissionDenied] = useState(false);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setReminders(await loadReminders());
@@ -47,6 +49,16 @@ export default function RemindersScreen() {
       refresh();
     }, [refresh])
   );
+
+  // If we arrived via notification tap (or the home preview), flash the
+  // matching reminder and make sure the active tab is visible.
+  useEffect(() => {
+    if (!highlight) return;
+    setTab("active");
+    setHighlightedId(highlight);
+    const t = setTimeout(() => setHighlightedId(null), 3500);
+    return () => clearTimeout(t);
+  }, [highlight]);
 
   const enabledTemplateIds = useMemo(() => {
     return new Set(
@@ -145,6 +157,7 @@ export default function RemindersScreen() {
       {tab === "active" ? (
         <ActiveList
           reminders={reminders}
+          highlightedId={highlightedId}
           onToggle={handleToggle}
           onDelete={handleDelete}
           onBrowseTemplates={() => setTab("suggested")}
@@ -161,11 +174,13 @@ export default function RemindersScreen() {
 
 function ActiveList({
   reminders,
+  highlightedId,
   onToggle,
   onDelete,
   onBrowseTemplates,
 }: {
   reminders: Reminder[] | null;
+  highlightedId: string | null;
   onToggle: (r: Reminder, enabled: boolean) => void;
   onDelete: (r: Reminder) => void;
   onBrowseTemplates: () => void;
@@ -198,17 +213,34 @@ function ActiveList({
     );
   }
 
+  // Float the highlighted reminder to the top so the user sees it immediately.
+  const ordered = highlightedId
+    ? [
+        ...reminders.filter((r) => r.id === highlightedId),
+        ...reminders.filter((r) => r.id !== highlightedId),
+      ]
+    : reminders;
+
   return (
     <ScrollView contentContainerStyle={styles.listPadding}>
-      {reminders.map((r) => (
-        <View key={r.id} style={{ marginBottom: spacing.sm + 2 }}>
-          <ReminderRow
-            reminder={r}
-            onToggle={(enabled) => onToggle(r, enabled)}
-            onPress={() => onDelete(r)}
-          />
-        </View>
-      ))}
+      {ordered.map((r) => {
+        const isFocused = r.id === highlightedId;
+        return (
+          <View
+            key={r.id}
+            style={[
+              { marginBottom: spacing.sm + 2 },
+              isFocused && styles.highlightRing,
+            ]}
+          >
+            <ReminderRow
+              reminder={r}
+              onToggle={(enabled) => onToggle(r, enabled)}
+              onPress={() => onDelete(r)}
+            />
+          </View>
+        );
+      })}
       <Text style={styles.hintText}>
         Tap a reminder to delete it. Toggle the switch to pause without losing
         its schedule.
@@ -359,5 +391,16 @@ const styles = StyleSheet.create({
     color: colors.textSubtle,
     textAlign: "center",
     marginTop: spacing.md,
+  },
+  highlightRing: {
+    borderRadius: radius.lg + 2,
+    borderWidth: 2,
+    borderColor: colors.brand,
+    padding: 2,
+    shadowColor: colors.brand,
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 2,
   },
 });

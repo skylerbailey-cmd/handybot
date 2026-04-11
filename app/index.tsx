@@ -10,9 +10,11 @@ import {
 } from "react-native";
 import IssueCard from "@/components/IssueCard";
 import PrimaryButton from "@/components/PrimaryButton";
+import UpcomingRemindersCard from "@/components/UpcomingRemindersCard";
+import { loadReminders } from "@/lib/reminders";
 import { ensureUser, loadIssues } from "@/lib/storage";
 import { colors, formatMoney, radius, spacing } from "@/lib/theme";
-import type { Issue } from "@/lib/types";
+import type { Issue, Reminder } from "@/lib/types";
 
 type IssueSection = {
   key: "ongoing" | "completed";
@@ -23,11 +25,17 @@ type IssueSection = {
 export default function HomeScreen() {
   const router = useRouter();
   const [issues, setIssues] = useState<Issue[] | null>(null);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [, loaded] = await Promise.all([ensureUser(), loadIssues()]);
-    setIssues(loaded);
+    const [, loadedIssues, loadedReminders] = await Promise.all([
+      ensureUser(),
+      loadIssues(),
+      loadReminders(),
+    ]);
+    setIssues(loadedIssues);
+    setReminders(loadedReminders);
   }, []);
 
   useFocusEffect(
@@ -62,6 +70,13 @@ export default function HomeScreen() {
       .filter((i) => i.status === "resolved")
       .reduce((sum, i) => sum + (i.plan.estimatedSavingsUsd ?? 0), 0);
   }, [issues]);
+
+  const upcomingReminders = useMemo(() => {
+    return reminders
+      .filter((r) => r.enabled)
+      .sort((a, b) => a.nextDue - b.nextDue)
+      .slice(0, 3);
+  }, [reminders]);
 
   const hasAnyIssues = !!issues && issues.length > 0;
 
@@ -125,6 +140,7 @@ export default function HomeScreen() {
                 style={styles.heroButton}
               />
             </View>
+            <UpcomingRemindersCard reminders={upcomingReminders} />
           </View>
         }
         ListEmptyComponent={
@@ -201,6 +217,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     padding: spacing.lg + 4,
+    marginBottom: spacing.md,
   },
   heroTitle: {
     fontSize: 22,
