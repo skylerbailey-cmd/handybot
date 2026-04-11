@@ -27,7 +27,7 @@ import {
   sendProjectChat,
   verifyRepair,
 } from "@/lib/claude";
-import { pickAndProcessImage, readImageAsBase64 } from "@/lib/image";
+import { promptAndPickImage, readImageAsBase64 } from "@/lib/image";
 import {
   deleteIssue,
   generateId,
@@ -443,9 +443,7 @@ export default function IssueWorkspaceScreen() {
     if (!issue || verifying) return;
     setError(null);
     try {
-      const picked = await pickAndProcessImage("camera").catch(() => null);
-      // If camera pick failed / was canceled, fall back to library.
-      const result = picked ?? (await pickAndProcessImage("library"));
+      const result = await promptAndPickImage("Upload a photo of your finished work");
       if (!result) return;
       setVerifying(true);
       const base64 = await readImageAsBase64(result.uri);

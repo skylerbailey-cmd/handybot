@@ -1,15 +1,13 @@
 import { useState } from "react";
 import {
-  ActionSheetIOS,
   Alert,
   Image,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { pickAndProcessImage, type ImageSource } from "@/lib/image";
+import { promptAndPickImage } from "@/lib/image";
 import { colors, radius, spacing } from "@/lib/theme";
 
 interface Props {
@@ -30,37 +28,16 @@ export default function ImagePickerButton({
 }: Props) {
   const [busy, setBusy] = useState(false);
 
-  async function runPicker(source: ImageSource) {
+  async function open() {
     setBusy(true);
     try {
-      const result = await pickAndProcessImage(source);
+      const result = await promptAndPickImage();
       if (result) onChange(result.uri);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Could not load image.";
       Alert.alert("Can't attach photo", msg);
     } finally {
       setBusy(false);
-    }
-  }
-
-  function open() {
-    if (Platform.OS === "ios") {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ["Cancel", "Take Photo", "Choose from Library"],
-          cancelButtonIndex: 0,
-        },
-        (idx) => {
-          if (idx === 1) runPicker("camera");
-          if (idx === 2) runPicker("library");
-        }
-      );
-    } else {
-      Alert.alert("Add a photo", undefined, [
-        { text: "Cancel", style: "cancel" },
-        { text: "Take Photo", onPress: () => runPicker("camera") },
-        { text: "Choose from Library", onPress: () => runPicker("library") },
-      ]);
     }
   }
 
