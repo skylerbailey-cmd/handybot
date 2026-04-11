@@ -2,17 +2,45 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import PrimaryButton from "@/components/PrimaryButton";
+import { scheduleTestNotification } from "@/lib/reminders";
 import { clearUser, ensureUser, wipeAllData } from "@/lib/storage";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { User } from "@/lib/types";
 
+const TEST_NOTIFICATION_DELAY_SECONDS = 5;
+
 export default function SettingsScreen() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const [testPending, setTestPending] = useState(false);
 
   useEffect(() => {
     ensureUser().then(setUser);
   }, []);
+
+  async function handleTestNotification() {
+    if (testPending) return;
+    setTestPending(true);
+    try {
+      const ok = await scheduleTestNotification(TEST_NOTIFICATION_DELAY_SECONDS);
+      if (!ok) {
+        Alert.alert(
+          "Notifications disabled",
+          "HandyBot needs notification permission to ping you. Enable notifications for HandyBot in your device Settings and try again."
+        );
+        return;
+      }
+      Alert.alert(
+        "Test notification scheduled",
+        `You'll see a notification in ${TEST_NOTIFICATION_DELAY_SECONDS} seconds. Put HandyBot in the background (or lock your phone) to see it pop up.`
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Something went wrong";
+      Alert.alert("Could not schedule", msg);
+    } finally {
+      setTestPending(false);
+    }
+  }
 
   function handleSignOut() {
     Alert.alert("Sign out?", "You can sign back in any time.", [
@@ -62,6 +90,26 @@ export default function SettingsScreen() {
             />
           </View>
         )}
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Notifications</Text>
+        <Text style={styles.cardBody}>
+          HandyBot uses local notifications to remind you about recurring
+          home-maintenance tasks. Tap below to make sure they&apos;re working
+          — you&apos;ll get a test ping in a few seconds.
+        </Text>
+        <PrimaryButton
+          title={
+            testPending
+              ? "Scheduling..."
+              : `Send test notification (${TEST_NOTIFICATION_DELAY_SECONDS}s)`
+          }
+          onPress={handleTestNotification}
+          loading={testPending}
+          variant="secondary"
+          style={{ marginTop: spacing.md }}
+        />
       </View>
 
       <View style={[styles.card, { gap: spacing.md }]}>

@@ -320,3 +320,38 @@ export function formatFrequency(days: number): string {
   if (days <= 380) return "Yearly";
   return `Every ${Math.round(days / 30)} months`;
 }
+
+/**
+ * Fires a one-off local notification a few seconds from now so the user
+ * (or a developer) can verify permissions + display + deep-linking end to
+ * end without waiting for a real reminder to come due. Returns true if
+ * the notification was scheduled successfully.
+ */
+export async function scheduleTestNotification(
+  delaySeconds: number = 5
+): Promise<boolean> {
+  await ensureNotificationsConfigured();
+  const granted = await requestNotificationPermissions();
+  if (!granted) return false;
+
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "🔔 HandyBot test notification",
+        body: "Notifications are working. Tap to open Reminders.",
+        // No reminderId → deep link lands on the Reminders screen without
+        // highlighting anything specific.
+        data: {},
+      },
+      trigger: {
+        seconds: Math.max(2, delaySeconds),
+        repeats: false,
+        channelId: "maintenance",
+      },
+    });
+    return true;
+  } catch (err) {
+    console.warn("Failed to schedule test notification", err);
+    return false;
+  }
+}

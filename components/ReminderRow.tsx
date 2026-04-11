@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import { StyleSheet, Switch, Text, View } from "react-native";
 import { formatDueDate, formatFrequency } from "@/lib/reminders";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { Reminder } from "@/lib/types";
@@ -6,16 +6,12 @@ import type { Reminder } from "@/lib/types";
 interface Props {
   reminder: Reminder;
   onToggle: (enabled: boolean) => void;
-  onPress?: () => void;
 }
 
-export default function ReminderRow({ reminder, onToggle, onPress }: Props) {
+export default function ReminderRow({ reminder, onToggle }: Props) {
   const overdue = reminder.enabled && reminder.nextDue <= Date.now();
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}
-    >
+    <View style={styles.row}>
       <View
         style={[
           styles.iconWrap,
@@ -60,7 +56,7 @@ export default function ReminderRow({ reminder, onToggle, onPress }: Props) {
         trackColor={{ false: "#d6d3d1", true: colors.brand }}
         thumbColor="#ffffff"
       />
-    </Pressable>
+    </View>
   );
 }
 

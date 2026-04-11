@@ -1,5 +1,5 @@
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Swipeable } from "react-native-gesture-handler";
 import ReminderRow from "@/components/ReminderRow";
 import SegmentedTabs from "@/components/SegmentedTabs";
 import TemplateRow from "@/components/TemplateRow";
@@ -15,7 +16,9 @@ import {
   createReminderFromTemplate,
   deleteReminder,
   ensureNotificationsConfigured,
+  formatDueDate,
   loadReminders,
+  markReminderDone,
   requestNotificationPermissions,
   setReminderEnabled,
 } from "@/lib/reminders";
@@ -131,6 +134,17 @@ export default function RemindersScreen() {
     );
   }
 
+  async function handleMarkDone(reminder: Reminder) {
+    const updated = await markReminderDone(reminder.id);
+    await refresh();
+    if (updated) {
+      Alert.alert(
+        `${reminder.icon}  Nice work`,
+        `"${reminder.title}" marked done. Next reminder: ${formatDueDate(updated)}.`
+      );
+    }
+  }
+
   const activeCount = reminders?.length ?? 0;
   const tabs = useMemo(
     () =>
@@ -160,6 +174,7 @@ export default function RemindersScreen() {
           highlightedId={highlightedId}
           onToggle={handleToggle}
           onDelete={handleDelete}
+          onMarkDone={handleMarkDone}
           onBrowseTemplates={() => setTab("suggested")}
         />
       ) : (
@@ -177,12 +192,14 @@ function ActiveList({
   highlightedId,
   onToggle,
   onDelete,
+  onMarkDone,
   onBrowseTemplates,
 }: {
   reminders: Reminder[] | null;
   highlightedId: string | null;
   onToggle: (r: Reminder, enabled: boolean) => void;
   onDelete: (r: Reminder) => void;
+  onMarkDone: (r: Reminder) => void;
   onBrowseTemplates: () => void;
 }) {
   if (reminders === null) {
@@ -233,19 +250,67 @@ function ActiveList({
               isFocused && styles.highlightRing,
             ]}
           >
-            <ReminderRow
+            <SwipeableReminder
               reminder={r}
               onToggle={(enabled) => onToggle(r, enabled)}
-              onPress={() => onDelete(r)}
+              onDelete={() => onDelete(r)}
+              onMarkDone={() => onMarkDone(r)}
             />
           </View>
         );
       })}
       <Text style={styles.hintText}>
-        Tap a reminder to delete it. Toggle the switch to pause without losing
-        its schedule.
+        Swipe right to mark a reminder done · Swipe left to delete · Toggle
+        the switch to pause without losing the schedule.
       </Text>
     </ScrollView>
+  );
+}
+
+function SwipeableReminder({
+  reminder,
+  onToggle,
+  onDelete,
+  onMarkDone,
+}: {
+  reminder: Reminder;
+  onToggle: (enabled: boolean) => void;
+  onDelete: () => void;
+  onMarkDone: () => void;
+}) {
+  const swipeRef = useRef<Swipeable>(null);
+
+  function handleDonePress() {
+    swipeRef.current?.close();
+    onMarkDone();
+  }
+
+  function handleDeletePress() {
+    swipeRef.current?.close();
+    onDelete();
+  }
+
+  return (
+    <Swipeable
+      ref={swipeRef}
+      friction={2}
+      leftThreshold={60}
+      rightThreshold={60}
+      overshootLeft={false}
+      overshootRight={false}
+      renderLeftActions={() => (
+        <Pressable onPress={handleDonePress} style={styles.swipeLeftAction}>
+          <Text style={styles.swipeActionText}>✓ Done</Text>
+        </Pressable>
+      )}
+      renderRightActions={() => (
+        <Pressable onPress={handleDeletePress} style={styles.swipeRightAction}>
+          <Text style={styles.swipeActionText}>Delete</Text>
+        </Pressable>
+      )}
+    >
+      <ReminderRow reminder={reminder} onToggle={onToggle} />
+    </Swipeable>
   );
 }
 
@@ -402,5 +467,30 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 0 },
     elevation: 2,
+  },
+  swipeLeftAction: {
+    flex: 1,
+    backgroundColor: colors.success,
+    alignItems: "flex-start",
+    justifyContent: "center",
+    paddingLeft: spacing.xl,
+    marginRight: -spacing.md,
+    paddingRight: spacing.md,
+    borderRadius: radius.lg,
+  },
+  swipeRightAction: {
+    flex: 1,
+    backgroundColor: colors.danger,
+    alignItems: "flex-end",
+    justifyContent: "center",
+    paddingRight: spacing.xl,
+    marginLeft: -spacing.md,
+    paddingLeft: spacing.md,
+    borderRadius: radius.lg,
+  },
+  swipeActionText: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "800",
   },
 });
