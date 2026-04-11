@@ -87,6 +87,14 @@ export default function RootLayout() {
             options={{ title: "Repair", headerBackTitle: "Back" }}
           />
           <Stack.Screen name="reminders" options={{ title: "Reminders" }} />
+          <Stack.Screen
+            name="reminder/new"
+            options={{ title: "New reminder", presentation: "card" }}
+          />
+          <Stack.Screen
+            name="reminder/[id]"
+            options={{ title: "Edit reminder", presentation: "card" }}
+          />
           <Stack.Screen name="settings" options={{ title: "Settings" }} />
         </Stack>
       </SafeAreaProvider>

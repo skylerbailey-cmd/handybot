@@ -1,4 +1,10 @@
-import { useFocusEffect, useLocalSearchParams } from "expo-router";
+import {
+  Link,
+  Stack,
+  useFocusEffect,
+  useLocalSearchParams,
+  useRouter,
+} from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -21,6 +27,7 @@ import {
   markReminderDone,
   requestNotificationPermissions,
   setReminderEnabled,
+  snoozeReminder,
 } from "@/lib/reminders";
 import { MAINTENANCE_TEMPLATES } from "@/lib/reminderTemplates";
 import { colors, radius, spacing } from "@/lib/theme";
@@ -32,6 +39,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export default function RemindersScreen() {
   const { highlight } = useLocalSearchParams<{ highlight?: string }>();
+  const router = useRouter();
   const [reminders, setReminders] = useState<Reminder[] | null>(null);
   const [tab, setTab] = useState<TabKey>("active");
   const [permissionDenied, setPermissionDenied] = useState(false);
@@ -145,6 +153,21 @@ export default function RemindersScreen() {
     }
   }
 
+  async function handleSnooze(reminder: Reminder) {
+    const updated = await snoozeReminder(reminder.id, 1);
+    await refresh();
+    if (updated) {
+      Alert.alert(
+        `${reminder.icon}  Snoozed`,
+        `"${reminder.title}" will remind you again tomorrow.`
+      );
+    }
+  }
+
+  function handleOpenEdit(reminder: Reminder) {
+    router.push({ pathname: "/reminder/[id]", params: { id: reminder.id } });
+  }
+
   const activeCount = reminders?.length ?? 0;
   const tabs = useMemo(
     () =>
@@ -157,6 +180,17 @@ export default function RemindersScreen() {
 
   return (
     <View style={{ flex: 1 }}>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Link href="/reminder/new" asChild>
+              <Pressable hitSlop={10} style={styles.headerBtn}>
+                <Text style={styles.headerBtnText}>+ New</Text>
+              </Pressable>
+            </Link>
+          ),
+        }}
+      />
       <SegmentedTabs tabs={tabs} value={tab} onChange={setTab} />
 
       {permissionDenied && (
@@ -175,6 +209,8 @@ export default function RemindersScreen() {
           onToggle={handleToggle}
           onDelete={handleDelete}
           onMarkDone={handleMarkDone}
+          onSnooze={handleSnooze}
+          onEdit={handleOpenEdit}
           onBrowseTemplates={() => setTab("suggested")}
         />
       ) : (
@@ -193,6 +229,8 @@ function ActiveList({
   onToggle,
   onDelete,
   onMarkDone,
+  onSnooze,
+  onEdit,
   onBrowseTemplates,
 }: {
   reminders: Reminder[] | null;
@@ -200,6 +238,8 @@ function ActiveList({
   onToggle: (r: Reminder, enabled: boolean) => void;
   onDelete: (r: Reminder) => void;
   onMarkDone: (r: Reminder) => void;
+  onSnooze: (r: Reminder) => void;
+  onEdit: (r: Reminder) => void;
   onBrowseTemplates: () => void;
 }) {
   if (reminders === null) {
@@ -221,7 +261,7 @@ function ActiveList({
         <Text style={styles.emptyTitle}>No reminders yet</Text>
         <Text style={styles.emptyBody}>
           Turn one-time fixes into lasting habits. Pick from our list of common
-          home maintenance tasks to get started.
+          home maintenance tasks to get started, or add your own.
         </Text>
         <Pressable onPress={onBrowseTemplates} style={styles.emptyBtn}>
           <Text style={styles.emptyBtnText}>Browse suggested reminders</Text>
@@ -255,13 +295,15 @@ function ActiveList({
               onToggle={(enabled) => onToggle(r, enabled)}
               onDelete={() => onDelete(r)}
               onMarkDone={() => onMarkDone(r)}
+              onSnooze={() => onSnooze(r)}
+              onEdit={() => onEdit(r)}
             />
           </View>
         );
       })}
       <Text style={styles.hintText}>
-        Swipe right to mark a reminder done · Swipe left to delete · Toggle
-        the switch to pause without losing the schedule.
+        Tap a reminder to edit it · Swipe right for Done / Snooze · Swipe
+        left to delete · Toggle the switch to pause.
       </Text>
     </ScrollView>
   );
@@ -272,17 +314,26 @@ function SwipeableReminder({
   onToggle,
   onDelete,
   onMarkDone,
+  onSnooze,
+  onEdit,
 }: {
   reminder: Reminder;
   onToggle: (enabled: boolean) => void;
   onDelete: () => void;
   onMarkDone: () => void;
+  onSnooze: () => void;
+  onEdit: () => void;
 }) {
   const swipeRef = useRef<Swipeable>(null);
 
   function handleDonePress() {
     swipeRef.current?.close();
     onMarkDone();
+  }
+
+  function handleSnoozePress() {
+    swipeRef.current?.close();
+    onSnooze();
   }
 
   function handleDeletePress() {
@@ -299,9 +350,14 @@ function SwipeableReminder({
       overshootLeft={false}
       overshootRight={false}
       renderLeftActions={() => (
-        <Pressable onPress={handleDonePress} style={styles.swipeLeftAction}>
-          <Text style={styles.swipeActionText}>✓ Done</Text>
-        </Pressable>
+        <View style={styles.leftActionsRow}>
+          <Pressable onPress={handleSnoozePress} style={styles.swipeSnoozeAction}>
+            <Text style={styles.swipeActionText}>Snooze 1d</Text>
+          </Pressable>
+          <Pressable onPress={handleDonePress} style={styles.swipeDoneAction}>
+            <Text style={styles.swipeActionText}>✓ Done</Text>
+          </Pressable>
+        </View>
       )}
       renderRightActions={() => (
         <Pressable onPress={handleDeletePress} style={styles.swipeRightAction}>
@@ -309,7 +365,9 @@ function SwipeableReminder({
         </Pressable>
       )}
     >
-      <ReminderRow reminder={reminder} onToggle={onToggle} />
+      <Pressable onPress={onEdit} style={({ pressed }) => pressed && { opacity: 0.9 }}>
+        <ReminderRow reminder={reminder} onToggle={onToggle} />
+      </Pressable>
     </Swipeable>
   );
 }
@@ -468,15 +526,25 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     elevation: 2,
   },
-  swipeLeftAction: {
-    flex: 1,
-    backgroundColor: colors.success,
-    alignItems: "flex-start",
-    justifyContent: "center",
-    paddingLeft: spacing.xl,
+  leftActionsRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    borderRadius: radius.lg,
+    overflow: "hidden",
     marginRight: -spacing.md,
     paddingRight: spacing.md,
-    borderRadius: radius.lg,
+  },
+  swipeSnoozeAction: {
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: spacing.lg,
+    backgroundColor: "#f59e0b",
+  },
+  swipeDoneAction: {
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.success,
   },
   swipeRightAction: {
     flex: 1,
@@ -492,5 +560,13 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 14,
     fontWeight: "800",
+  },
+  headerBtn: {
+    paddingHorizontal: spacing.sm,
+  },
+  headerBtnText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: colors.brand,
   },
 });

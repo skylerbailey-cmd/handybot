@@ -297,6 +297,109 @@ export async function markReminderDone(
 }
 
 /**
+ * Push a reminder's next-due time forward by a few days without changing
+ * its baseline frequency. Used when the user needs a little more time
+ * before tackling the task.
+ */
+export async function snoozeReminder(
+  reminderId: string,
+  snoozeDays: number = 1
+): Promise<Reminder | undefined> {
+  const reminder = await getReminder(reminderId);
+  if (!reminder) return undefined;
+  await cancelLocalNotification(reminder.notificationId);
+  const nextDue = Date.now() + snoozeDays * DAY_MS;
+  const updated: Reminder = { ...reminder, nextDue };
+  const notificationId = reminder.enabled
+    ? await scheduleLocalNotification(updated)
+    : undefined;
+  const final = { ...updated, notificationId };
+  await upsertReminder(final);
+  return final;
+}
+
+/**
+ * Create a reminder the user wrote by hand (not from a template or a
+ * Claude suggestion). Schedules a local notification and stores it.
+ */
+export async function createCustomReminder(args: {
+  title: string;
+  description?: string;
+  icon?: string;
+  category?: ReminderCategory;
+  frequencyDays: number;
+  startDate: Date;
+}): Promise<Reminder> {
+  await ensureNotificationsConfigured();
+  await requestNotificationPermissions();
+
+  const base: Reminder = {
+    id: generateId(),
+    title: args.title.trim(),
+    description: args.description?.trim() || undefined,
+    icon: args.icon?.trim() || "🛠",
+    category: args.category ?? "general",
+    frequencyDays: args.frequencyDays,
+    nextDue: args.startDate.getTime(),
+    enabled: true,
+    createdAt: Date.now(),
+  };
+
+  const notificationId = await scheduleLocalNotification(base);
+  const reminder = { ...base, notificationId };
+  await upsertReminder(reminder);
+  return reminder;
+}
+
+/**
+ * Apply edits to an existing reminder. Reschedules the notification if
+ * any scheduling field changed (frequency, next-due, or enabled flag).
+ */
+export async function updateReminder(args: {
+  reminderId: string;
+  title?: string;
+  description?: string;
+  icon?: string;
+  frequencyDays?: number;
+  nextDue?: number;
+}): Promise<Reminder | undefined> {
+  const current = await getReminder(args.reminderId);
+  if (!current) return undefined;
+
+  const schedulingChanged =
+    (args.frequencyDays !== undefined &&
+      args.frequencyDays !== current.frequencyDays) ||
+    (args.nextDue !== undefined && args.nextDue !== current.nextDue);
+
+  if (schedulingChanged) {
+    await cancelLocalNotification(current.notificationId);
+  }
+
+  const updated: Reminder = {
+    ...current,
+    title: args.title?.trim() ?? current.title,
+    description:
+      args.description !== undefined
+        ? args.description.trim() || undefined
+        : current.description,
+    icon: args.icon?.trim() || current.icon,
+    frequencyDays: args.frequencyDays ?? current.frequencyDays,
+    nextDue: args.nextDue ?? current.nextDue,
+  };
+
+  const notificationId =
+    updated.enabled && schedulingChanged
+      ? await scheduleLocalNotification(updated)
+      : schedulingChanged
+        ? undefined
+        : current.notificationId;
+
+  const final = { ...updated, notificationId };
+  await upsertReminder(final);
+  return final;
+}
+
+/**
  * Human-friendly description of when a reminder will fire next.
  */
 export function formatDueDate(reminder: Reminder): string {
