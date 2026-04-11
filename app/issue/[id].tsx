@@ -1,5 +1,5 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActionSheetIOS,
   Alert,
@@ -14,8 +14,10 @@ import {
 } from "react-native";
 import ImagePickerButton from "@/components/ImagePickerButton";
 import MessageBubble from "@/components/MessageBubble";
+import PlanView from "@/components/PlanView";
+import SegmentedTabs from "@/components/SegmentedTabs";
 import TypingIndicator from "@/components/TypingIndicator";
-import { buildSummary, sendChat } from "@/lib/claude";
+import { sendProjectChat } from "@/lib/claude";
 import { readImageAsBase64 } from "@/lib/image";
 import {
   deleteIssue,
@@ -26,10 +28,13 @@ import {
 import { colors, radius, spacing } from "@/lib/theme";
 import type { ChatMessage, ChatRequestMessage, Issue } from "@/lib/types";
 
+type TabKey = "plan" | "chat";
+
 export default function IssueWorkspaceScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [issue, setIssue] = useState<Issue | null | undefined>(undefined);
+  const [tab, setTab] = useState<TabKey>("plan");
   const [draft, setDraft] = useState("");
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -46,13 +51,61 @@ export default function IssueWorkspaceScreen() {
     loadIssue();
   }, [loadIssue]);
 
+  const chatCount = issue?.messages.length ?? 0;
+
   useEffect(() => {
-    if (!issue || issue.messages.length === 0) return;
+    if (tab !== "chat" || chatCount === 0) return;
     const t = setTimeout(() => {
       listRef.current?.scrollToEnd({ animated: true });
     }, 50);
     return () => clearTimeout(t);
-  }, [issue?.messages.length, sending]);
+  }, [tab, chatCount, sending]);
+
+  async function persist(updated: Issue) {
+    setIssue(updated);
+    try {
+      await upsertIssue(updated);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not save.";
+      setError(msg);
+    }
+  }
+
+  function setStepCompleted(stepId: string, completed: boolean) {
+    if (!issue) return;
+    const steps = issue.plan.steps.map((s) =>
+      s.id === stepId ? { ...s, completed } : s
+    );
+    persist({
+      ...issue,
+      plan: { ...issue.plan, steps },
+      updatedAt: Date.now(),
+    });
+  }
+
+  function toggleTool(toolId: string) {
+    if (!issue) return;
+    const tools = issue.plan.tools.map((t) =>
+      t.id === toolId ? { ...t, have: !t.have } : t
+    );
+    persist({
+      ...issue,
+      plan: { ...issue.plan, tools },
+      updatedAt: Date.now(),
+    });
+  }
+
+  function toggleMaterial(materialId: string) {
+    if (!issue) return;
+    const materials = issue.plan.materials.map((m) =>
+      m.id === materialId ? { ...m, have: !m.have } : m
+    );
+    persist({
+      ...issue,
+      plan: { ...issue.plan, materials },
+      updatedAt: Date.now(),
+    });
+  }
 
   function openOverflow() {
     if (!issue) return;
@@ -81,13 +134,11 @@ export default function IssueWorkspaceScreen() {
 
   async function toggleResolved() {
     if (!issue) return;
-    const updated: Issue = {
+    await persist({
       ...issue,
       status: issue.status === "resolved" ? "in_progress" : "resolved",
       updatedAt: Date.now(),
-    };
-    setIssue(updated);
-    await upsertIssue(updated);
+    });
   }
 
   async function handleDelete() {
@@ -130,8 +181,7 @@ export default function IssueWorkspaceScreen() {
       messages: [...issue.messages, userMsg],
       updatedAt: Date.now(),
     };
-    setIssue(withUser);
-    await upsertIssue(withUser);
+    await persist(withUser);
 
     setDraft("");
     setPendingImage(null);
@@ -149,7 +199,7 @@ export default function IssueWorkspaceScreen() {
         })
       );
 
-      const reply = await sendChat(apiMessages);
+      const reply = await sendProjectChat(withUser, apiMessages);
 
       const assistantMsg: ChatMessage = {
         id: generateId(),
@@ -158,14 +208,11 @@ export default function IssueWorkspaceScreen() {
         createdAt: Date.now(),
       };
 
-      const updated: Issue = {
+      await persist({
         ...withUser,
         messages: [...withUser.messages, assistantMsg],
-        summary: buildSummary(reply),
         updatedAt: Date.now(),
-      };
-      setIssue(updated);
-      await upsertIssue(updated);
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Could not reach Claude";
       setError(msg);
@@ -173,6 +220,15 @@ export default function IssueWorkspaceScreen() {
       setSending(false);
     }
   }
+
+  const tabs = useMemo(
+    () =>
+      [
+        { key: "plan" as const, label: "Plan" },
+        { key: "chat" as const, label: "Chat", badge: chatCount },
+      ] as const,
+    [chatCount]
+  );
 
   if (issue === undefined) {
     return (
@@ -186,7 +242,9 @@ export default function IssueWorkspaceScreen() {
     return (
       <View style={styles.centered}>
         <Text style={styles.missingTitle}>Repair not found</Text>
-        <Text style={styles.placeholder}>This repair may have been deleted.</Text>
+        <Text style={styles.placeholder}>
+          This repair may have been deleted.
+        </Text>
       </View>
     );
   }
@@ -197,7 +255,11 @@ export default function IssueWorkspaceScreen() {
         options={{
           title: issue.title || "Repair",
           headerRight: () => (
-            <Pressable onPress={openOverflow} hitSlop={10} style={styles.headerBtn}>
+            <Pressable
+              onPress={openOverflow}
+              hitSlop={10}
+              style={styles.headerBtn}
+            >
               <Text style={styles.headerBtnText}>⋯</Text>
             </Pressable>
           ),
@@ -208,63 +270,77 @@ export default function IssueWorkspaceScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 88 : 0}
       >
-        <FlatList
-          ref={listRef}
-          data={issue.messages}
-          keyExtractor={(m) => m.id}
-          renderItem={({ item }) => <MessageBubble message={item} />}
-          contentContainerStyle={styles.listContent}
-          ListFooterComponent={sending ? <TypingIndicator /> : null}
-          onContentSizeChange={() =>
-            listRef.current?.scrollToEnd({ animated: false })
-          }
-        />
+        <SegmentedTabs tabs={tabs} value={tab} onChange={setTab} />
 
-        {error && (
-          <View style={styles.errorBar}>
-            <Text style={styles.errorText}>{error}</Text>
+        {tab === "plan" ? (
+          <PlanView
+            issue={issue}
+            onSetStepCompleted={setStepCompleted}
+            onToggleTool={toggleTool}
+            onToggleMaterial={toggleMaterial}
+          />
+        ) : (
+          <View style={{ flex: 1 }}>
+            <FlatList
+              ref={listRef}
+              data={issue.messages}
+              keyExtractor={(m) => m.id}
+              renderItem={({ item }) => <MessageBubble message={item} />}
+              contentContainerStyle={styles.listContent}
+              ListFooterComponent={sending ? <TypingIndicator /> : null}
+              onContentSizeChange={() =>
+                listRef.current?.scrollToEnd({ animated: false })
+              }
+            />
+
+            {error && (
+              <View style={styles.errorBar}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+
+            <View style={styles.composer}>
+              {pendingImage && (
+                <View style={{ marginBottom: spacing.sm }}>
+                  <ImagePickerButton
+                    value={pendingImage}
+                    onChange={setPendingImage}
+                    variant="compact"
+                  />
+                </View>
+              )}
+              <View style={styles.composerRow}>
+                {!pendingImage && (
+                  <ImagePickerButton
+                    value={null}
+                    onChange={setPendingImage}
+                    variant="compact"
+                  />
+                )}
+                <TextInput
+                  value={draft}
+                  onChangeText={setDraft}
+                  placeholder="Share an update or ask a follow-up..."
+                  placeholderTextColor={colors.textSubtle}
+                  multiline
+                  style={styles.input}
+                />
+                <Pressable
+                  onPress={handleSend}
+                  disabled={sending || (!draft.trim() && !pendingImage)}
+                  style={({ pressed }) => [
+                    styles.sendBtn,
+                    (sending || (!draft.trim() && !pendingImage)) &&
+                      styles.sendBtnDisabled,
+                    pressed && { opacity: 0.8 },
+                  ]}
+                >
+                  <Text style={styles.sendBtnText}>➤</Text>
+                </Pressable>
+              </View>
+            </View>
           </View>
         )}
-
-        <View style={styles.composer}>
-          {pendingImage && (
-            <View style={{ marginBottom: spacing.sm }}>
-              <ImagePickerButton
-                value={pendingImage}
-                onChange={setPendingImage}
-                variant="compact"
-              />
-            </View>
-          )}
-          <View style={styles.composerRow}>
-            {!pendingImage && (
-              <ImagePickerButton
-                value={null}
-                onChange={setPendingImage}
-                variant="compact"
-              />
-            )}
-            <TextInput
-              value={draft}
-              onChangeText={setDraft}
-              placeholder="Share an update or ask a follow-up..."
-              placeholderTextColor={colors.textSubtle}
-              multiline
-              style={styles.input}
-            />
-            <Pressable
-              onPress={handleSend}
-              disabled={sending || (!draft.trim() && !pendingImage)}
-              style={({ pressed }) => [
-                styles.sendBtn,
-                (sending || (!draft.trim() && !pendingImage)) && styles.sendBtnDisabled,
-                pressed && { opacity: 0.8 },
-              ]}
-            >
-              <Text style={styles.sendBtnText}>➤</Text>
-            </Pressable>
-          </View>
-        </View>
       </KeyboardAvoidingView>
     </>
   );

@@ -11,6 +11,43 @@ export interface ChatMessage {
 
 export type IssueStatus = "in_progress" | "resolved";
 
+export type Difficulty = "Easy" | "Medium" | "Hard" | "Call a pro";
+
+export interface ToolItem {
+  id: string;
+  name: string;
+  required: boolean;
+  /** User's checklist state — do they already have it? */
+  have: boolean;
+}
+
+export interface MaterialItem {
+  id: string;
+  name: string;
+  quantity: string;
+  notes?: string;
+  /** User's checklist state — do they already have it? */
+  have: boolean;
+}
+
+export interface PlanStep {
+  id: string;
+  title: string;
+  detail: string;
+  estimatedMinutes?: number;
+  completed: boolean;
+}
+
+export interface RepairPlan {
+  difficulty: Difficulty;
+  /** Total estimated time across all steps, in minutes. */
+  estimatedMinutes: number;
+  tools: ToolItem[];
+  materials: MaterialItem[];
+  steps: PlanStep[];
+  safetyNotes: string[];
+}
+
 export interface Issue {
   id: string;
   title: string;
@@ -20,6 +57,7 @@ export interface Issue {
   updatedAt: number;
   /** Local file URI used as the thumbnail on the home screen. */
   coverImageUri?: string;
+  plan: RepairPlan;
   messages: ChatMessage[];
 }
 
@@ -29,7 +67,7 @@ export interface User {
   createdAt: number;
 }
 
-/** Message shape sent to the Claude client (base64 is read at send time). */
+/** Message shape sent to the Claude chat endpoint. */
 export interface ChatRequestMessage {
   role: MessageRole;
   text: string;

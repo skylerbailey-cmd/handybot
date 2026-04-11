@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import ImagePickerButton from "@/components/ImagePickerButton";
 import PrimaryButton from "@/components/PrimaryButton";
-import { buildSummary, extractTitle, sendChat } from "@/lib/claude";
+import { createRepairPlan } from "@/lib/claude";
 import { readImageAsBase64 } from "@/lib/image";
 import { generateId, upsertIssue } from "@/lib/storage";
 import { colors, radius, spacing } from "@/lib/theme";
@@ -31,45 +31,44 @@ export default function NewIssueScreen() {
 
     const id = generateId();
     const now = Date.now();
-
-    const firstUserMsg: ChatMessage = {
-      id: generateId(),
-      role: "user",
-      text: note.trim() || "Here's what's broken. What should I do?",
-      imageUri,
-      createdAt: now,
-    };
+    const userText =
+      note.trim() || "Here's what's broken. What should I do?";
 
     try {
       const imageBase64 = await readImageAsBase64(imageUri);
 
-      const reply = await sendChat([
-        {
-          role: "user",
-          text: firstUserMsg.text,
-          imageBase64,
-          imageMediaType: "image/jpeg",
-        },
-      ]);
+      const generated = await createRepairPlan({
+        note: userText,
+        imageBase64,
+        imageMediaType: "image/jpeg",
+      });
 
-      const { title, body } = extractTitle(reply);
-      const summary = buildSummary(body);
+      const firstUserMsg: ChatMessage = {
+        id: generateId(),
+        role: "user",
+        text: userText,
+        imageUri,
+        createdAt: now,
+      };
 
       const assistantMsg: ChatMessage = {
         id: generateId(),
         role: "assistant",
-        text: body,
+        text:
+          generated.openingMessage ||
+          "I've put together a plan for this repair. Check the Plan tab and let me know if you have questions.",
         createdAt: Date.now(),
       };
 
       const issue: Issue = {
         id,
-        title: title || "New repair",
-        summary,
+        title: generated.title,
+        summary: generated.summary,
         status: "in_progress",
         createdAt: now,
         updatedAt: Date.now(),
         coverImageUri: imageUri,
+        plan: generated.plan,
         messages: [firstUserMsg, assistantMsg],
       };
 
@@ -117,6 +116,15 @@ export default function NewIssueScreen() {
           />
         </View>
 
+        <View style={styles.infoCard}>
+          <Text style={styles.infoTitle}>What you&apos;ll get</Text>
+          <Text style={styles.infoBody}>
+            HandyBot will analyze your photo and build you a complete repair
+            project: difficulty rating, time estimate, tools needed, materials
+            list, and a step-by-step checklist you can tick off as you work.
+          </Text>
+        </View>
+
         {error && (
           <View style={styles.errorCard}>
             <Text style={styles.errorText}>{error}</Text>
@@ -124,7 +132,7 @@ export default function NewIssueScreen() {
         )}
 
         <PrimaryButton
-          title={submitting ? "Analyzing..." : "Get fix instructions"}
+          title={submitting ? "Building your plan..." : "Generate repair plan"}
           onPress={handleSubmit}
           disabled={!imageUri}
           loading={submitting}
@@ -168,6 +176,26 @@ const styles = StyleSheet.create({
     color: colors.text,
     textAlignVertical: "top",
     backgroundColor: colors.surface,
+  },
+  infoCard: {
+    backgroundColor: colors.brandLighter,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: "#fed7aa",
+    padding: spacing.lg,
+  },
+  infoTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.brandDark,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  infoBody: {
+    marginTop: spacing.xs,
+    fontSize: 13,
+    lineHeight: 19,
+    color: "#7c2d12",
   },
   errorCard: {
     borderRadius: radius.md,

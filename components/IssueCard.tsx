@@ -1,6 +1,7 @@
 import { Link } from "expo-router";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { colors, radius, spacing } from "@/lib/theme";
+import DifficultyBadge from "./DifficultyBadge";
+import { colors, formatDuration, radius, spacing } from "@/lib/theme";
 import type { Issue } from "@/lib/types";
 
 function timeAgo(ts: number) {
@@ -17,12 +18,22 @@ function timeAgo(ts: number) {
 }
 
 export default function IssueCard({ issue }: { issue: Issue }) {
+  const stepsDone = issue.plan.steps.filter((s) => s.completed).length;
+  const stepsTotal = issue.plan.steps.length;
+  const progressPct =
+    stepsTotal === 0 ? 0 : Math.round((stepsDone / stepsTotal) * 100);
+
   return (
     <Link href={`/issue/${issue.id}`} asChild>
-      <Pressable style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+      <Pressable
+        style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      >
         <View style={styles.thumb}>
           {issue.coverImageUri ? (
-            <Image source={{ uri: issue.coverImageUri }} style={styles.thumbImage} />
+            <Image
+              source={{ uri: issue.coverImageUri }}
+              style={styles.thumbImage}
+            />
           ) : (
             <View style={styles.thumbPlaceholder}>
               <Text style={styles.thumbPlaceholderText}>📷</Text>
@@ -43,9 +54,31 @@ export default function IssueCard({ issue }: { issue: Issue }) {
           <Text style={styles.summary} numberOfLines={2}>
             {issue.summary || "Tap to continue the conversation."}
           </Text>
+
+          <View style={styles.metaRow}>
+            <DifficultyBadge difficulty={issue.plan.difficulty} />
+            <Text style={styles.metaDot}>·</Text>
+            <Text style={styles.metaText}>
+              {formatDuration(issue.plan.estimatedMinutes)}
+            </Text>
+            {stepsTotal > 0 && (
+              <>
+                <Text style={styles.metaDot}>·</Text>
+                <Text style={styles.metaText}>
+                  {stepsDone}/{stepsTotal}
+                </Text>
+              </>
+            )}
+          </View>
+
+          <View style={styles.progressTrack}>
+            <View
+              style={[styles.progressFill, { width: `${progressPct}%` }]}
+            />
+          </View>
+
           <Text style={styles.timestamp}>Updated {timeAgo(issue.updatedAt)}</Text>
         </View>
-        <Text style={styles.chevron}>›</Text>
       </Pressable>
     </Link>
   );
@@ -54,7 +87,7 @@ export default function IssueCard({ issue }: { issue: Issue }) {
 const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: spacing.md,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
@@ -117,14 +150,35 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     lineHeight: 18,
   },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs + 2,
+    marginTop: spacing.sm,
+  },
+  metaText: {
+    fontSize: 12,
+    color: colors.textMuted,
+    fontWeight: "600",
+  },
+  metaDot: {
+    fontSize: 12,
+    color: colors.textSubtle,
+  },
+  progressTrack: {
+    height: 4,
+    borderRadius: radius.pill,
+    backgroundColor: "#f5f5f4",
+    overflow: "hidden",
+    marginTop: spacing.sm,
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: colors.brand,
+  },
   timestamp: {
     marginTop: 4,
     fontSize: 11,
     color: colors.textSubtle,
-  },
-  chevron: {
-    fontSize: 28,
-    color: colors.textSubtle,
-    paddingHorizontal: 4,
   },
 });

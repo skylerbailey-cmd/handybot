@@ -7,10 +7,18 @@ HandyBot is built with **Expo + React Native**, so it runs on iOS, Android, and 
 ## Features
 
 - **Photo-first diagnosis.** Snap a picture with your camera or pick from your library; Claude's vision model identifies the issue and gives you a plain-English fix.
-- **One workspace per repair.** Each issue has its own chat thread so the model can track context and progress over time.
-- **Follow-up photos.** Attach another picture mid-repair to keep the conversation going.
+- **Each repair is a project.** Claude doesn't just reply with prose — it generates a structured repair plan with a difficulty rating, time estimate, tools list, materials list, safety notes, and a numbered step-by-step checklist.
+- **Interactive walkthrough.** Work through the repair one step at a time: see the current step front-and-center, tap "Mark complete & continue" to advance, jump backward to revisit, and watch your progress fill in live.
+- **Follow-up chat with context.** Every project has a chat tab where you can send photos and ask questions mid-repair — Claude sees the full plan and current progress so it can reference specific steps.
 - **Dead-simple settings.** Sign out or delete everything — that's it.
 - **Local-first.** Issue metadata lives in `AsyncStorage`, photos are saved to the app's documents directory. No backend required for the MVP.
+
+## How a repair works
+
+1. Tap **New repair** and photograph the problem.
+2. HandyBot analyzes the photo and generates a full **repair plan** via Claude tool use (structured JSON output): title, difficulty, total time, tools, materials, safety notes, and steps.
+3. The **Plan tab** opens with an interactive step-by-step walkthrough. The current step is displayed in a large card with its instructions and time estimate; a progress bar and indicator dots show exactly where you are.
+4. As you work, tap **Mark complete & continue** to advance. The chat tab is always one tap away for follow-up photos and questions, and Claude has the full plan in its system prompt so it can reference step numbers.
 
 ## Stack
 
