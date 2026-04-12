@@ -116,15 +116,43 @@
         </ul>
 
         <h2>6. Your Rights and Choices</h2>
-        <p>Depending on your jurisdiction, you may have the following rights:</p>
+        <p>You have meaningful control over your data in HandyBot. Because HandyBot is local-first, many of these rights can be exercised directly within the app itself &mdash; no waiting for us to respond.</p>
+
+        <h3>6.1 Right to Access and Portability (Export Your Data)</h3>
+        <p>You can export a complete copy of all your data at any time:</p>
         <ul>
-          <li><strong>Access.</strong> Request a copy of the personal information we hold about you.</li>
-          <li><strong>Correction.</strong> Request correction of inaccurate information.</li>
-          <li><strong>Deletion.</strong> Request deletion of your personal information. You can delete all local data at any time via Settings &rarr; Delete Everything.</li>
-          <li><strong>Portability.</strong> Request your data in a portable format.</li>
-          <li><strong>Opt-Out.</strong> Disable push notifications in your device settings; disable AI features by not using them.</li>
+          <li><strong>In-app:</strong> Go to <em>Settings &rarr; Export My Data</em>. HandyBot generates a JSON file containing all of your homes, repairs, chat messages, inventory items, reminders, and settings. You can share or save this file anywhere.</li>
+          <li><strong>By request:</strong> If you prefer, email <a href="mailto:support@grnd-lab.com">support@grnd-lab.com</a> with the subject line "Data Export Request" and we will provide your data within 30 days.</li>
         </ul>
-        <p>To exercise these rights, email us at <a href="mailto:support@grnd-lab.com">support@grnd-lab.com</a>. We will respond within 30 days.</p>
+
+        <h3>6.2 Right to Correction (Edit Your Data)</h3>
+        <p>You can review and correct any data stored in the app directly:</p>
+        <ul>
+          <li><strong>Homes:</strong> Tap a home in the Homes screen to rename it, change its address, or update its icon.</li>
+          <li><strong>Inventory items:</strong> Tap any item in Home Inventory to edit its name, category, condition, or notes.</li>
+          <li><strong>Reminders:</strong> Tap any reminder to change its title, frequency, or next-due date.</li>
+          <li><strong>Repairs:</strong> Open a repair to edit its title, notes, or step completion status.</li>
+          <li><strong>By request:</strong> For anything you cannot edit in the app (e.g., correspondence with support), email <a href="mailto:support@grnd-lab.com">support@grnd-lab.com</a>.</li>
+        </ul>
+
+        <h3>6.3 Right to Deletion (Erase Your Data and Account)</h3>
+        <p>You control when and how your data is erased:</p>
+        <ul>
+          <li><strong>Delete specific items:</strong> Long-press any repair, inventory item, reminder, or home to delete it individually.</li>
+          <li><strong>Delete all data and account:</strong> Go to <em>Settings &rarr; Delete Account &amp; All Data</em>. This permanently and irreversibly erases every home, repair, inventory item, reminder, chat message, photo, and your account. We cannot recover this data after deletion.</li>
+          <li><strong>Uninstall:</strong> Deleting the app from your device also removes all locally-stored data.</li>
+          <li><strong>By request:</strong> Email <a href="mailto:support@grnd-lab.com">support@grnd-lab.com</a> with the subject line "Deletion Request." We will confirm deletion within 30 days and delete any server-held records (such as support correspondence) except where we are legally required to retain them.</li>
+        </ul>
+
+        <h3>6.4 Other Rights</h3>
+        <ul>
+          <li><strong>Object / Restrict Processing.</strong> You can disable push notifications in your device settings, stop using AI features (no data will be sent to Anthropic), or cancel your subscription at any time.</li>
+          <li><strong>Withdraw Consent.</strong> Where we rely on your consent to process data, you can withdraw it at any time by deleting your data, uninstalling the app, or emailing us.</li>
+          <li><strong>Non-Discrimination.</strong> We will not deny service, charge different prices, or provide a different quality of service because you exercised any of these rights.</li>
+          <li><strong>Complaint.</strong> If you believe we have violated your privacy rights, you may lodge a complaint with your local data protection authority.</li>
+        </ul>
+
+        <p>To exercise any right that is not available directly in the app, email us at <a href="mailto:support@grnd-lab.com">support@grnd-lab.com</a>. We will respond within 30 days. For identity verification, we may ask you to confirm the email address associated with your account.</p>
 
         <h3>6.1 California Residents (CCPA/CPRA)</h3>
         <p>If you are a California resident, you have additional rights under the California Consumer Privacy Act, including the right to know what personal information we collect, the right to delete, and the right to opt out of the sale or sharing of your personal information. We do not sell personal information.</p>
@@ -167,11 +195,12 @@
   <footer class="footer">
     <div class="container">
       <div class="footer-bottom">
-        <p>&copy; 2026 grnd-lab. All rights reserved. &middot; <a href="privacy.html">Privacy Policy</a> &middot; <a href="terms.html">Terms of Service</a></p>
+        <p>&copy; 2026 grnd-lab. All rights reserved. &middot; <a href="privacy.html">Privacy Policy</a> &middot; <a href="terms.html">Terms of Service</a> &middot; <a href="#" onclick="event.preventDefault(); window.openCookiePreferences && window.openCookiePreferences();">Cookie Preferences</a></p>
       </div>
     </div>
   </footer>
 
   <script src="js/main.js"></script>
+  <script src="js/cookies.js"></script>
 </body>
 </html>
