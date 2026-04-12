@@ -86,6 +86,18 @@ export default function RootLayout() {
             name="issue/[id]"
             options={{ title: "Repair", headerBackTitle: "Back" }}
           />
+          <Stack.Screen
+            name="ask"
+            options={{ title: "Ask HandyBot" }}
+          />
+          <Stack.Screen
+            name="inventory"
+            options={{ title: "Home Inventory" }}
+          />
+          <Stack.Screen
+            name="history"
+            options={{ title: "Repair History" }}
+          />
           <Stack.Screen name="reminders" options={{ title: "Reminders" }} />
           <Stack.Screen
             name="reminder/new"

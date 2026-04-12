@@ -107,6 +107,8 @@ export interface MaterialItem {
   name: string;
   quantity: string;
   notes?: string;
+  /** Estimated retail price in USD for the quantity needed. */
+  estimatedPriceUsd?: number;
   /** User's checklist state — do they already have it? */
   have: boolean;
 }
@@ -234,6 +236,41 @@ export interface Issue {
 export interface User {
   id: string;
   name: string;
+  createdAt: number;
+}
+
+// --------------------------------------------------------------------------
+// Home inventory
+// --------------------------------------------------------------------------
+
+export type ItemCondition = "good" | "fair" | "poor" | "replace_soon";
+
+export interface HomeItem {
+  id: string;
+  name: string;
+  category: string;
+  icon: string;
+  room: string;
+  /** Local file URI of the item photo. */
+  photoUri?: string;
+  estimatedAgeYears: number;
+  typicalLifespanYears: number;
+  condition: ItemCondition;
+  conditionNotes: string;
+  maintenanceTips: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+// --------------------------------------------------------------------------
+// Ask HandyBot (general Q&A not tied to a specific repair)
+// --------------------------------------------------------------------------
+
+export interface AskMessage {
+  id: string;
+  role: MessageRole;
+  text: string;
+  imageUri?: string;
   createdAt: number;
 }
 

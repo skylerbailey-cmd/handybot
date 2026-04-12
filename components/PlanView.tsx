@@ -12,6 +12,7 @@ import {
   radius,
   spacing,
 } from "@/lib/theme";
+import { Share } from "react-native";
 import type { Issue } from "@/lib/types";
 
 interface Props {
@@ -43,6 +44,27 @@ export default function PlanView({
   const allDone = stepsTotal > 0 && stepsDone === stepsTotal;
   const savingsAmount = plan.estimatedSavingsUsd ?? 0;
   const savingsLabel = formatMoney(savingsAmount);
+  const materialsCost = plan.materials.reduce(
+    (sum, m) => sum + (m.estimatedPriceUsd ?? 0),
+    0
+  );
+
+  function shareShoppingList(iss: Issue) {
+    const lines: string[] = [];
+    lines.push(`Shopping list: ${iss.title}`);
+    lines.push("");
+    for (const m of iss.plan.materials) {
+      const price = m.estimatedPriceUsd
+        ? ` (~${formatMoney(m.estimatedPriceUsd)})`
+        : "";
+      lines.push(`${m.have ? "✓" : "☐"} ${m.name} — ${m.quantity}${price}`);
+    }
+    if (materialsCost > 0) {
+      lines.push("");
+      lines.push(`Estimated total: ~${formatMoney(materialsCost)}`);
+    }
+    Share.share({ message: lines.join("\n"), title: "Shopping list" });
+  }
 
   return (
     <ScrollView
@@ -121,12 +143,38 @@ export default function PlanView({
                   checked={material.have}
                   onToggle={() => onToggleMaterial(material.id)}
                   title={material.name}
-                  subtitle={material.notes}
+                  subtitle={
+                    [
+                      material.notes,
+                      material.estimatedPriceUsd
+                        ? `~${formatMoney(material.estimatedPriceUsd)}`
+                        : undefined,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || undefined
+                  }
                   rightText={material.quantity}
                 />
               </View>
             ))}
           </View>
+          {materialsCost > 0 && (
+            <View style={styles.costRow}>
+              <Text style={styles.costLabel}>Estimated materials cost</Text>
+              <Text style={styles.costValue}>
+                ~{formatMoney(materialsCost)}
+              </Text>
+            </View>
+          )}
+          <Pressable
+            onPress={() => shareShoppingList(issue)}
+            style={({ pressed }) => [
+              styles.shareBtn,
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Text style={styles.shareBtnText}>Share shopping list</Text>
+          </Pressable>
         </Section>
       )}
 
@@ -340,6 +388,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     color: "#7c2d12",
+  },
+  costRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.xs,
+  },
+  costLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.textMuted,
+  },
+  costValue: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: colors.text,
+  },
+  shareBtn: {
+    alignSelf: "center",
+    marginTop: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  shareBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.brand,
+    textDecorationLine: "underline",
   },
   regenSection: {
     marginTop: spacing.xl,

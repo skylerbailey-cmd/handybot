@@ -15,7 +15,8 @@ import type {
   VerificationResult,
 } from "./types";
 
-const MODEL = "claude-sonnet-4-6";
+const MODEL_SONNET = "claude-sonnet-4-6";
+const MODEL_HAIKU = "claude-haiku-4-5-20251001";
 const ANTHROPIC_VERSION = "2023-06-01";
 const ENDPOINT = "https://api.anthropic.com/v1/messages";
 
@@ -137,8 +138,13 @@ const CREATE_PLAN_TOOL = {
               description:
                 "Optional spec, brand, or purchase note. Keep short.",
             },
+            estimated_price_usd: {
+              type: "number",
+              description:
+                "Estimated cost in USD for the quantity needed, based on typical US retail prices (Home Depot, Lowe's, Amazon). Use a single realistic point estimate.",
+            },
           },
-          required: ["name", "quantity"],
+          required: ["name", "quantity", "estimated_price_usd"],
         },
       },
       steps: {
@@ -486,7 +492,12 @@ interface RawPlanInput {
   estimated_minutes: number;
   estimated_savings_usd: number;
   tools: Array<{ name: string; required: boolean }>;
-  materials: Array<{ name: string; quantity: string; notes?: string }>;
+  materials: Array<{
+    name: string;
+    quantity: string;
+    notes?: string;
+    estimated_price_usd?: number;
+  }>;
   steps: Array<{
     title: string;
     detail: string;
@@ -594,6 +605,10 @@ function parsePlan(raw: RawPlanInput): GeneratedPlan {
     name: String(m.name),
     quantity: String(m.quantity),
     notes: m.notes ? String(m.notes) : undefined,
+    estimatedPriceUsd:
+      typeof m.estimated_price_usd === "number" && m.estimated_price_usd > 0
+        ? Math.round(m.estimated_price_usd * 100) / 100
+        : undefined,
     have: false,
   }));
 
@@ -648,8 +663,9 @@ export async function createRepairPlan(args: {
     imageMediaType: args.imageMediaType ?? "image/jpeg",
   };
 
+  // Plan generation uses Sonnet — quality of structured output matters here.
   const data = (await callAnthropic({
-    model: MODEL,
+    model: MODEL_SONNET,
     max_tokens: 2500,
     system: [
       {
@@ -822,8 +838,9 @@ export async function sendProjectChat(
     },
   ];
 
+  // Chat follow-ups use Haiku — Q&A with plan context is straightforward.
   const data = (await callAnthropic({
-    model: MODEL,
+    model: MODEL_HAIKU,
     max_tokens: 1500,
     system: systemBlocks,
     tools: [PROPOSE_UPDATES_TOOL],
@@ -959,8 +976,9 @@ export async function verifyRepair(args: {
     imageMediaType: args.imageMediaType ?? "image/jpeg",
   };
 
+  // Verification uses Sonnet — vision accuracy matters when judging quality.
   const data = (await callAnthropic({
-    model: MODEL,
+    model: MODEL_SONNET,
     max_tokens: 1500,
     system: [
       {
@@ -1032,5 +1050,187 @@ export function applyVerificationResult(
       ? plan.steps
       : [...plan.steps, ...verify.fixSteps],
     verificationResult,
+  };
+}
+
+// --------------------------------------------------------------------------
+// Ask HandyBot anything (general home Q&A, no project required)
+// --------------------------------------------------------------------------
+
+const ASK_SYSTEM_PROMPT = `You are HandyBot, a friendly AI home expert. The user is asking a general question about their home — it might be about a potential problem, a weird noise, maintenance advice, product recommendations, or just curiosity.
+
+Guidelines:
+- Be warm, practical, and specific.
+- If they include a photo, describe exactly what you see before answering.
+- If something looks dangerous (mold, structural damage, gas smell, exposed wiring), say so clearly and recommend a professional.
+- Keep answers concise — 2-4 short paragraphs max. Use bullet points for lists.
+- If you're not sure, say so honestly rather than guessing.`;
+
+export async function askHandyBot(
+  messages: ChatRequestMessage[]
+): Promise<string> {
+  // General Q&A uses Haiku — fast, cheap, and the task is conversational.
+  const data = (await callAnthropic({
+    model: MODEL_HAIKU,
+    max_tokens: 1000,
+    system: [
+      {
+        type: "text",
+        text: ASK_SYSTEM_PROMPT,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    messages: toApiMessages(messages),
+  })) as ClaudeResponse;
+
+  return data.content
+    .filter((b): b is { type: "text"; text: string } => b.type === "text")
+    .map((b) => b.text)
+    .join("\n")
+    .trim();
+}
+
+// --------------------------------------------------------------------------
+// Home inventory item analysis
+// --------------------------------------------------------------------------
+
+const ANALYZE_ITEM_TOOL = {
+  name: "analyze_home_item",
+  description:
+    "Analyze a photo of a home item (appliance, system, fixture) and identify it with estimated age and condition.",
+  input_schema: {
+    type: "object",
+    properties: {
+      name: {
+        type: "string",
+        description:
+          "What the item is, e.g. 'Gas water heater', 'GE side-by-side refrigerator', 'Carrier central AC unit'.",
+      },
+      category: {
+        type: "string",
+        enum: [
+          "hvac",
+          "plumbing",
+          "electrical",
+          "appliance",
+          "structural",
+          "exterior",
+          "safety",
+          "other",
+        ],
+      },
+      estimated_age_years: {
+        type: "integer",
+        description:
+          "Best-guess age in years based on model style, wear, and any visible date stickers.",
+      },
+      typical_lifespan_years: {
+        type: "integer",
+        description:
+          "How long this type of item typically lasts with normal maintenance.",
+      },
+      condition: {
+        type: "string",
+        enum: ["good", "fair", "poor", "replace_soon"],
+        description: "Visible condition based on the photo.",
+      },
+      condition_notes: {
+        type: "string",
+        description:
+          "1-2 sentences about what you see — rust, wear, damage, cleanliness, etc.",
+      },
+      maintenance_tips: {
+        type: "array",
+        description: "2-4 short maintenance tips specific to this item.",
+        items: { type: "string" },
+      },
+      icon: {
+        type: "string",
+        description: "Single emoji that best represents this item.",
+      },
+    },
+    required: [
+      "name",
+      "category",
+      "estimated_age_years",
+      "typical_lifespan_years",
+      "condition",
+      "condition_notes",
+      "maintenance_tips",
+      "icon",
+    ],
+  },
+} as const;
+
+const ANALYZE_ITEM_SYSTEM = `You are HandyBot analyzing a photo of a home item for a homeowner's inventory. Identify what it is, estimate its age and condition from what you can see, and provide practical maintenance advice. Be specific about what you observe — mention brand names, model indicators, visible wear, rust, dates, stickers, etc. when you can see them.
+
+You MUST call the analyze_home_item tool. Do not reply with plain text.`;
+
+export interface AnalyzedItem {
+  name: string;
+  category: string;
+  estimatedAgeYears: number;
+  typicalLifespanYears: number;
+  condition: "good" | "fair" | "poor" | "replace_soon";
+  conditionNotes: string;
+  maintenanceTips: string[];
+  icon: string;
+}
+
+export async function analyzeHomeItem(args: {
+  imageBase64: string;
+  imageMediaType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+  note?: string;
+}): Promise<AnalyzedItem> {
+  const userMessage: ChatRequestMessage = {
+    role: "user",
+    text:
+      args.note?.trim() ||
+      "What is this item? Please analyze its age, condition, and give me maintenance tips.",
+    imageBase64: args.imageBase64,
+    imageMediaType: args.imageMediaType ?? "image/jpeg",
+  };
+
+  // Item analysis uses Sonnet — vision accuracy for age/condition assessment.
+  const data = (await callAnthropic({
+    model: MODEL_SONNET,
+    max_tokens: 1500,
+    system: [
+      {
+        type: "text",
+        text: ANALYZE_ITEM_SYSTEM,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    tools: [ANALYZE_ITEM_TOOL],
+    tool_choice: { type: "tool", name: "analyze_home_item" },
+    messages: toApiMessages([userMessage]),
+  })) as ClaudeResponse;
+
+  const toolUse = data.content.find(
+    (b): b is { type: "tool_use"; name: string; input: unknown } =>
+      b.type === "tool_use" && b.name === "analyze_home_item"
+  );
+
+  if (!toolUse) {
+    throw new Error("Claude did not return item analysis. Try again.");
+  }
+
+  const raw = toolUse.input as Record<string, unknown>;
+  const conditions = ["good", "fair", "poor", "replace_soon"] as const;
+  const rawCondition = String(raw.condition ?? "fair");
+  const condition = conditions.find((c) => c === rawCondition) ?? "fair";
+
+  return {
+    name: String(raw.name ?? "Unknown item").trim(),
+    category: String(raw.category ?? "other").trim(),
+    estimatedAgeYears: Number(raw.estimated_age_years) || 0,
+    typicalLifespanYears: Number(raw.typical_lifespan_years) || 0,
+    condition,
+    conditionNotes: String(raw.condition_notes ?? "").trim(),
+    maintenanceTips: Array.isArray(raw.maintenance_tips)
+      ? (raw.maintenance_tips as string[]).map((t) => String(t).trim()).filter(Boolean)
+      : [],
+    icon: String(raw.icon ?? "🏠").trim().slice(0, 4) || "🏠",
   };
 }

@@ -160,6 +160,23 @@ export default function HomeScreen() {
                 </View>
               </View>
             )}
+            <View style={styles.quickNav}>
+              <QuickNavBtn
+                icon="💬"
+                label="Ask HandyBot"
+                onPress={() => router.push("/ask")}
+              />
+              <QuickNavBtn
+                icon="🏠"
+                label="Home inventory"
+                onPress={() => router.push("/inventory")}
+              />
+              <QuickNavBtn
+                icon="📋"
+                label="Repair history"
+                onPress={() => router.push("/history")}
+              />
+            </View>
             <UpcomingRemindersCard reminders={upcomingReminders} />
           </View>
         }
@@ -190,6 +207,29 @@ function LoadingList() {
         <View key={i} style={styles.skeleton} />
       ))}
     </View>
+  );
+}
+
+function QuickNavBtn({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: string;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.quickNavBtn,
+        pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] },
+      ]}
+    >
+      <Text style={styles.quickNavIcon}>{icon}</Text>
+      <Text style={styles.quickNavLabel}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -332,6 +372,30 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textAlign: "center",
     maxWidth: 320,
+  },
+  quickNav: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  quickNavBtn: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing.md + 2,
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  quickNavIcon: {
+    fontSize: 24,
+  },
+  quickNavLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.textMuted,
+    textAlign: "center",
   },
   totalSavedCard: {
     flexDirection: "row",
