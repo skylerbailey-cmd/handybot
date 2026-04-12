@@ -368,7 +368,11 @@ function SwipeableReminder({
       )}
     >
       <Pressable onPress={onEdit} style={({ pressed }) => pressed && { opacity: 0.9 }}>
-        <ReminderRow reminder={reminder} onToggle={onToggle} />
+        <ReminderRow
+          reminder={reminder}
+          onToggle={onToggle}
+          onMarkDone={onMarkDone}
+        />
       </Pressable>
     </ReanimatedSwipeable>
   );

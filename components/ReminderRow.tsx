@@ -1,4 +1,4 @@
-import { StyleSheet, Switch, Text, View } from "react-native";
+import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { formatDueDate, formatFrequency } from "@/lib/reminders";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { Reminder } from "@/lib/types";
@@ -6,12 +6,16 @@ import type { Reminder } from "@/lib/types";
 interface Props {
   reminder: Reminder;
   onToggle: (enabled: boolean) => void;
+  onMarkDone?: () => void;
 }
 
-export default function ReminderRow({ reminder, onToggle }: Props) {
+export default function ReminderRow({ reminder, onToggle, onMarkDone }: Props) {
   const overdue = reminder.enabled && reminder.nextDue <= Date.now();
+  const isDueOrOverdue =
+    reminder.enabled &&
+    reminder.nextDue <= Date.now() + 24 * 60 * 60 * 1000; // due within 24h or overdue
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, overdue && styles.rowOverdue]}>
       <View
         style={[
           styles.iconWrap,
@@ -49,6 +53,17 @@ export default function ReminderRow({ reminder, onToggle }: Props) {
             </>
           )}
         </View>
+        {isDueOrOverdue && onMarkDone && (
+          <Pressable
+            onPress={onMarkDone}
+            style={({ pressed }) => [
+              styles.markDoneBtn,
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <Text style={styles.markDoneBtnText}>✓ Mark done</Text>
+          </Pressable>
+        )}
       </View>
       <Switch
         value={reminder.enabled}
@@ -70,6 +85,23 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  rowOverdue: {
+    borderColor: colors.danger,
+    backgroundColor: "#fef2f2",
+  },
+  markDoneBtn: {
+    alignSelf: "flex-start",
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.success,
+  },
+  markDoneBtnText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "800",
   },
   iconWrap: {
     width: 44,

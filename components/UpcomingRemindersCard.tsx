@@ -6,6 +6,7 @@ import type { Reminder } from "@/lib/types";
 
 interface Props {
   reminders: Reminder[];
+  onMarkDone?: (reminder: Reminder) => void;
 }
 
 /**
@@ -14,7 +15,7 @@ interface Props {
  * the Reminders tab. Tapping a row deep-links into Reminders with that
  * reminder highlighted.
  */
-export default function UpcomingRemindersCard({ reminders }: Props) {
+export default function UpcomingRemindersCard({ reminders, onMarkDone }: Props) {
   const router = useRouter();
 
   if (reminders.length === 0) return null;
@@ -63,6 +64,20 @@ export default function UpcomingRemindersCard({ reminders }: Props) {
                 >
                   {formatDueDate(r)}
                 </Text>
+                {overdue && onMarkDone && (
+                  <Pressable
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      onMarkDone(r);
+                    }}
+                    style={({ pressed }) => [
+                      styles.markDoneBtn,
+                      pressed && { opacity: 0.85 },
+                    ]}
+                  >
+                    <Text style={styles.markDoneBtnText}>✓ Done</Text>
+                  </Pressable>
+                )}
               </View>
               <Text style={styles.chevron}>›</Text>
             </Pressable>
@@ -158,5 +173,18 @@ const styles = StyleSheet.create({
   chevron: {
     fontSize: 22,
     color: colors.textSubtle,
+  },
+  markDoneBtn: {
+    alignSelf: "flex-start",
+    marginTop: spacing.xs + 2,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.success,
+  },
+  markDoneBtnText: {
+    color: "#ffffff",
+    fontSize: 11,
+    fontWeight: "800",
   },
 });

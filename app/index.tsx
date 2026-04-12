@@ -1,6 +1,7 @@
 import { Link, Stack, useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
+  Alert,
   Pressable,
   RefreshControl,
   SectionList,
@@ -12,7 +13,11 @@ import IssueCard from "@/components/IssueCard";
 import PrimaryButton from "@/components/PrimaryButton";
 import UpcomingRemindersCard from "@/components/UpcomingRemindersCard";
 import { getActiveHome, type Home } from "@/lib/homes";
-import { loadReminders } from "@/lib/reminders";
+import {
+  formatDueDate,
+  loadReminders,
+  markReminderDone,
+} from "@/lib/reminders";
 import { ensureUser, loadIssues } from "@/lib/storage";
 import { colors, formatMoney, radius, spacing } from "@/lib/theme";
 import type { Issue, Reminder } from "@/lib/types";
@@ -87,6 +92,17 @@ export default function HomeScreen() {
   }, [reminders]);
 
   const hasAnyIssues = !!issues && issues.length > 0;
+
+  async function handleReminderDone(reminder: Reminder) {
+    const updated = await markReminderDone(reminder.id);
+    await refresh();
+    if (updated) {
+      Alert.alert(
+        `${reminder.icon}  Done`,
+        `"${reminder.title}" marked done. Next: ${formatDueDate(updated)}.`
+      );
+    }
+  }
 
   return (
     <>
@@ -191,7 +207,10 @@ export default function HomeScreen() {
                 onPress={() => router.push("/history")}
               />
             </View>
-            <UpcomingRemindersCard reminders={upcomingReminders} />
+            <UpcomingRemindersCard
+              reminders={upcomingReminders}
+              onMarkDone={handleReminderDone}
+            />
           </View>
         }
         ListEmptyComponent={
