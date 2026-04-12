@@ -272,43 +272,94 @@ function ActiveList({
     );
   }
 
-  // Float the highlighted reminder to the top so the user sees it immediately.
-  const ordered = highlightedId
-    ? [
-        ...reminders.filter((r) => r.id === highlightedId),
-        ...reminders.filter((r) => r.id !== highlightedId),
-      ]
-    : reminders;
+  const groups = groupReminders(reminders);
+
+  // Float the highlighted reminder to the top of its group so the user sees
+  // it immediately after tapping a notification.
+  if (highlightedId) {
+    for (const g of groups) {
+      const idx = g.items.findIndex((r) => r.id === highlightedId);
+      if (idx > 0) {
+        const [item] = g.items.splice(idx, 1);
+        g.items.unshift(item);
+      }
+    }
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.listPadding}>
-      {ordered.map((r) => {
-        const isFocused = r.id === highlightedId;
-        return (
-          <View
-            key={r.id}
-            style={[
-              { marginBottom: spacing.sm + 2 },
-              isFocused && styles.highlightRing,
-            ]}
-          >
-            <SwipeableReminder
-              reminder={r}
-              onToggle={(enabled) => onToggle(r, enabled)}
-              onDelete={() => onDelete(r)}
-              onMarkDone={() => onMarkDone(r)}
-              onSnooze={() => onSnooze(r)}
-              onEdit={() => onEdit(r)}
-            />
+      {groups.map((group) => (
+        <View key={group.key} style={{ marginBottom: spacing.lg }}>
+          <View style={styles.groupHeader}>
+            <Text style={styles.groupTitle}>{group.label}</Text>
+            <Text style={styles.groupCount}>{group.items.length}</Text>
           </View>
-        );
-      })}
+          {group.items.map((r) => {
+            const isFocused = r.id === highlightedId;
+            return (
+              <View
+                key={r.id}
+                style={[
+                  { marginBottom: spacing.sm + 2 },
+                  isFocused && styles.highlightRing,
+                ]}
+              >
+                <SwipeableReminder
+                  reminder={r}
+                  onToggle={(enabled) => onToggle(r, enabled)}
+                  onDelete={() => onDelete(r)}
+                  onMarkDone={() => onMarkDone(r)}
+                  onSnooze={() => onSnooze(r)}
+                  onEdit={() => onEdit(r)}
+                />
+              </View>
+            );
+          })}
+        </View>
+      ))}
       <Text style={styles.hintText}>
         Tap a reminder to edit it · Swipe right for Done / Snooze · Swipe
         left to delete · Toggle the switch to pause.
       </Text>
     </ScrollView>
   );
+}
+
+type ReminderGroup = {
+  key: "overdue" | "dueSoon" | "upcoming" | "paused";
+  label: string;
+  items: Reminder[];
+};
+
+function groupReminders(reminders: Reminder[]): ReminderGroup[] {
+  const now = Date.now();
+  const WEEK_MS = 7 * DAY_MS;
+  const overdue: Reminder[] = [];
+  const dueSoon: Reminder[] = [];
+  const upcoming: Reminder[] = [];
+  const paused: Reminder[] = [];
+
+  for (const r of reminders) {
+    if (!r.enabled) paused.push(r);
+    else if (r.nextDue <= now) overdue.push(r);
+    else if (r.nextDue - now <= WEEK_MS) dueSoon.push(r);
+    else upcoming.push(r);
+  }
+
+  const bySoonest = (a: Reminder, b: Reminder) => a.nextDue - b.nextDue;
+  overdue.sort(bySoonest);
+  dueSoon.sort(bySoonest);
+  upcoming.sort(bySoonest);
+  paused.sort(bySoonest);
+
+  return (
+    [
+      { key: "overdue", label: "Overdue", items: overdue },
+      { key: "dueSoon", label: "Due this week", items: dueSoon },
+      { key: "upcoming", label: "Upcoming", items: upcoming },
+      { key: "paused", label: "Paused", items: paused },
+    ] as ReminderGroup[]
+  ).filter((g) => g.items.length > 0);
 }
 
 function SwipeableReminder({
@@ -507,12 +558,24 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     lineHeight: 19,
   },
+  groupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
+  },
   groupTitle: {
     fontSize: 12,
     fontWeight: "800",
     color: colors.text,
     textTransform: "uppercase",
     letterSpacing: 0.6,
+    marginBottom: spacing.sm,
+  },
+  groupCount: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.textSubtle,
     marginBottom: spacing.sm,
   },
   hintText: {
