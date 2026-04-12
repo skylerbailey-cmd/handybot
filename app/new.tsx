@@ -5,6 +5,7 @@ import {
   Animated,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -177,6 +178,16 @@ export default function NewIssueScreen() {
           disabled={!imageUri}
           loading={submitting}
         />
+
+        <Pressable
+          onPress={() => router.push("/manual-repair")}
+          style={({ pressed }) => [
+            styles.manualEntryBtn,
+            pressed && { opacity: 0.7 },
+          ]}
+        >
+          <Text style={styles.manualEntryText}>Create manual entry</Text>
+        </Pressable>
       </ScrollView>
 
       {submitting && (
@@ -331,5 +342,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSubtle,
     marginTop: spacing.xs,
+  },
+  manualEntryBtn: {
+    alignItems: "center",
+    paddingVertical: spacing.md,
+  },
+  manualEntryText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.textSubtle,
   },
 });

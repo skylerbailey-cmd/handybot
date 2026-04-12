@@ -1,10 +1,11 @@
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -24,6 +25,8 @@ export default function ManualRepairScreen() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [cost, setCost] = useState("");
+  const [repairDate, setRepairDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [beforePhoto, setBeforePhoto] = useState<string | null>(null);
   const [afterPhoto, setAfterPhoto] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -83,7 +86,7 @@ export default function ManualRepairScreen() {
         title: trimmedTitle,
         summary: description.trim() || "Manually added repair.",
         status: verified ? "verified" : "completed",
-        createdAt: Date.now(),
+        createdAt: repairDate.getTime(),
         updatedAt: Date.now(),
         coverImageUri: beforePhoto ?? afterPhoto ?? undefined,
         plan,
@@ -129,6 +132,61 @@ export default function ManualRepairScreen() {
             placeholderTextColor={colors.textSubtle}
             style={styles.input}
           />
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.label}>Date of repair</Text>
+          <Text style={styles.help}>
+            When did this repair happen? Defaults to today.
+          </Text>
+          {Platform.OS === "web" ? (
+            <input
+              type="date"
+              value={repairDate.toISOString().split("T")[0]}
+              max={new Date().toISOString().split("T")[0]}
+              onChange={(e: any) => {
+                const d = new Date(e.target.value + "T12:00:00");
+                if (!isNaN(d.getTime())) setRepairDate(d);
+              }}
+              style={{
+                marginTop: 8,
+                fontSize: 15,
+                padding: 10,
+                borderRadius: 12,
+                border: `1px solid ${colors.borderStrong}`,
+                color: colors.text,
+                backgroundColor: colors.surface,
+              }}
+            />
+          ) : (
+            <>
+              <Pressable
+                onPress={() => setShowDatePicker(true)}
+                style={styles.dateButton}
+              >
+                <Text style={styles.dateButtonText}>
+                  {repairDate.toLocaleDateString("en-US", {
+                    weekday: "short",
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </Text>
+                <Text style={styles.dateChangeHint}>Tap to change</Text>
+              </Pressable>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={repairDate}
+                  mode="date"
+                  maximumDate={new Date()}
+                  onChange={(_event: any, selectedDate?: Date) => {
+                    setShowDatePicker(Platform.OS === "ios");
+                    if (selectedDate) setRepairDate(selectedDate);
+                  }}
+                />
+              )}
+            </>
+          )}
         </View>
 
         <View style={styles.card}>
@@ -305,6 +363,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#047857",
     lineHeight: 19,
+  },
+  dateButton: {
+    marginTop: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 4,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  dateButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  dateChangeHint: {
+    fontSize: 12,
+    color: colors.textSubtle,
   },
   noVerifyNote: {
     padding: spacing.md,
