@@ -1,6 +1,8 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Animated,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -17,12 +19,50 @@ import { generateId, upsertIssue } from "@/lib/storage";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { ChatMessage, Issue } from "@/lib/types";
 
+const LOADING_MESSAGES = [
+  "Analyzing your photo...",
+  "Identifying the problem...",
+  "Researching the best fix...",
+  "Building your step-by-step plan...",
+  "Estimating tools and materials...",
+  "Checking for safety concerns...",
+  "Calculating how much you'll save...",
+  "Almost there — putting it all together...",
+];
+
+const MESSAGE_INTERVAL_MS = 3000;
+
 export default function NewIssueScreen() {
   const router = useRouter();
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!submitting) {
+      setLoadingMsgIndex(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      // Fade out, swap text, fade in
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => {
+        setLoadingMsgIndex((prev) => (prev + 1) % LOADING_MESSAGES.length);
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }).start();
+      });
+    }, MESSAGE_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [submitting, fadeAnim]);
 
   async function handleSubmit() {
     if (!imageUri || submitting) return;
@@ -138,6 +178,34 @@ export default function NewIssueScreen() {
           loading={submitting}
         />
       </ScrollView>
+
+      {submitting && (
+        <View style={styles.loadingOverlay} pointerEvents="auto">
+          <View style={styles.loadingCard}>
+            <ActivityIndicator color={colors.brand} size="large" />
+            <Animated.Text
+              style={[styles.loadingMessage, { opacity: fadeAnim }]}
+            >
+              {LOADING_MESSAGES[loadingMsgIndex]}
+            </Animated.Text>
+            <View style={styles.loadingDots}>
+              {LOADING_MESSAGES.map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.loadingDot,
+                    i === loadingMsgIndex && styles.loadingDotActive,
+                    i < loadingMsgIndex && styles.loadingDotPast,
+                  ]}
+                />
+              ))}
+            </View>
+            <Text style={styles.loadingHint}>
+              This usually takes 10–20 seconds
+            </Text>
+          </View>
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -207,5 +275,61 @@ const styles = StyleSheet.create({
   errorText: {
     color: colors.danger,
     fontSize: 13,
+  },
+  loadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(28,25,23,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.xl,
+  },
+  loadingCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.xl + 4,
+    alignItems: "center",
+    gap: spacing.md,
+    minWidth: 280,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 5,
+  },
+  loadingMessage: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.text,
+    textAlign: "center",
+    minHeight: 22,
+  },
+  loadingDots: {
+    flexDirection: "row",
+    gap: 6,
+    marginTop: spacing.xs,
+  },
+  loadingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#e7e5e4",
+  },
+  loadingDotActive: {
+    backgroundColor: colors.brand,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  loadingDotPast: {
+    backgroundColor: colors.brandLight,
+  },
+  loadingHint: {
+    fontSize: 12,
+    color: colors.textSubtle,
+    marginTop: spacing.xs,
   },
 });
