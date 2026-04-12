@@ -1,41 +1,40 @@
-# Handy-Man
+# HandyBot Website
 
-Professional handyman services website. Built with HTML, CSS, and vanilla JavaScript.
+Landing page for HandyBot — an AI-powered DIY home repair app built with React Native / Expo and Claude AI. Built by grnd-lab.
 
-## Features
+## What is HandyBot?
 
-- Responsive design (mobile, tablet, desktop)
-- Smooth scroll navigation
-- Scroll-triggered animations
-- Contact form with validation
-- Mobile hamburger menu
+HandyBot is a mobile app that turns your phone into a home repair expert. Snap a photo of what's broken and get a complete AI-generated repair plan with tools, materials, costs, step-by-step instructions, and safety warnings.
 
-## Project Structure
+### Core Features
+
+- **AI Photo Diagnosis** — Claude vision analyzes repair photos and generates structured plans
+- **Ask HandyBot** — Free-form Q&A chat with photo support for any home question
+- **Home Inventory** — AI-powered item identification with condition and lifespan tracking
+- **Smart Reminders** — 20+ maintenance templates plus AI-generated reminders from inventory
+- **Repair Verification** — Upload finished work photos for AI quality verification
+- **Repair History** — Full timeline with stats and exportable summaries
+- **Multi-Home Support** — Manage multiple properties with isolated data per home
+- **Material Pricing** — Estimated costs for every repair plan
+- **Safety Alerts** — Risk assessment for electrical, gas, plumbing, heights, chemicals
+
+## Website Structure
 
 ```
-Handy-Man-/
-  index.html        # Main website page
-  css/
-    styles.css      # All styles
-  js/
-    main.js         # Interactivity and animations
-  images/           # Image assets (add your own)
+index.html        # Landing page
+css/styles.css    # Styles (brand color: #ea580c)
+js/main.js        # Interactivity and animations
+images/           # Image assets
 ```
 
-## Getting Started
-
-Open `index.html` in a browser, or serve with any static file server:
+## Local Development
 
 ```bash
-# Python
 python3 -m http.server 8000
-
-# Node.js (npx)
+# or
 npx serve .
 ```
 
-## Customization
+## Contact
 
-- Update contact info, phone number, and email in `index.html`
-- Replace placeholder images in the `images/` directory
-- Adjust colors via CSS variables in `css/styles.css`
+support@grnd-lab.com

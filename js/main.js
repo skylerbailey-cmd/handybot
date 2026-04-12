@@ -55,7 +55,7 @@ const observer = new IntersectionObserver((entries) => {
 // Add fade-in class to elements and observe them
 function initAnimations() {
   const animateElements = document.querySelectorAll(
-    '.service-card, .step-card, .testimonial-card, .about-list li, .contact-item, .feature-card, .feature-row, .mockup-item, .mockup-reminder, .mockup-project'
+    '.step-card, .testimonial-card, .contact-item, .feature-card, .feature-row, .mockup-item, .mockup-reminder, .chat-bubble, .plan-step'
   );
 
   animateElements.forEach((el, index) => {
@@ -88,7 +88,7 @@ contactForm.addEventListener('submit', function (e) {
     <div class="form-success show">
       <div class="success-icon">&#10004;</div>
       <h3>You're on the List!</h3>
-      <p>Thanks for signing up! We'll notify you as soon as Handy-Man is ready. You'll be among the first to try it.</p>
+      <p>Thanks for signing up! We'll notify you as soon as HandyBot is ready. You'll be among the first to try it.</p>
     </div>
   `;
 
