@@ -148,6 +148,18 @@ export default function InventoryScreen() {
     return Array.from(map.entries());
   }, [items]);
 
+  // First item (in render order) that has smart reminders — auto-expand its section
+  const firstItemWithRemindersId = useMemo(() => {
+    for (const [, categoryItems] of grouped) {
+      for (const it of categoryItems) {
+        if (it.suggestedReminders && it.suggestedReminders.length > 0) {
+          return it.id;
+        }
+      }
+    }
+    return null;
+  }, [grouped]);
+
   async function handleAddItem() {
     if (adding) return;
     try {
@@ -334,51 +346,78 @@ export default function InventoryScreen() {
                       </View>
                     )}
                     {item.suggestedReminders &&
-                      item.suggestedReminders.length > 0 && (
-                        <View style={styles.remindersSection}>
-                          <Pressable
-                            onPress={() => {
-                              setExpandedReminderSections((prev) => {
-                                const next = new Set(prev);
-                                if (next.has(item.id)) next.delete(item.id);
-                                else next.add(item.id);
-                                return next;
-                              });
-                            }}
-                            style={styles.remindersSectionHeader}
-                          >
-                            <Text style={styles.remindersSectionTitle}>
-                              🔔 Smart reminders ({item.suggestedReminders.length})
-                            </Text>
-                            <Text style={styles.arrow}>
-                              {expandedReminderSections.has(item.id) ? "▾" : "▸"}
-                            </Text>
-                          </Pressable>
-                          {expandedReminderSections.has(item.id) &&
-                            item.suggestedReminders.map((sr, ri) => {
-                              const alreadyAdded = addedReminderTitles.has(
-                                `${item.id}:${sr.title}`
-                              );
-                              return (
-                                <View key={ri} style={styles.reminderRow}>
-                                  <View style={styles.reminderHeader}>
-                                    <Text style={styles.reminderIcon}>
-                                      {sr.icon}
-                                    </Text>
-                                    <Text
-                                      style={styles.reminderTitle}
-                                      numberOfLines={1}
-                                    >
-                                      {sr.title}
-                                    </Text>
-                                    {alreadyAdded && (
-                                      <Text style={styles.addedChip}>
-                                        ✓ Added
+                      item.suggestedReminders.length > 0 &&
+                      (() => {
+                        const isOpen =
+                          expandedReminderSections.has(item.id) ||
+                          (item.id === firstItemWithRemindersId &&
+                            !expandedReminderSections.has(`${item.id}:closed`));
+                        return (
+                          <View style={styles.remindersSection}>
+                            <Pressable
+                              onPress={() => {
+                                setExpandedReminderSections((prev) => {
+                                  const next = new Set(prev);
+                                  if (isOpen) {
+                                    next.delete(item.id);
+                                    // Mark auto-open item as explicitly closed
+                                    if (item.id === firstItemWithRemindersId) {
+                                      next.add(`${item.id}:closed`);
+                                    }
+                                  } else {
+                                    next.add(item.id);
+                                    next.delete(`${item.id}:closed`);
+                                  }
+                                  return next;
+                                });
+                              }}
+                              style={styles.remindersSectionHeader}
+                            >
+                              <Text style={styles.remindersSectionTitle}>
+                                🔔 Smart reminders ({item.suggestedReminders.length})
+                              </Text>
+                              <Text style={styles.remindersToggleHint}>
+                                {isOpen ? "Hide" : "Tap to view"}
+                              </Text>
+                              <Text style={styles.remindersChevron}>
+                                {isOpen ? "▾" : "▸"}
+                              </Text>
+                            </Pressable>
+                            {isOpen &&
+                              item.suggestedReminders.map((sr, ri) => {
+                                const alreadyAdded = addedReminderTitles.has(
+                                  `${item.id}:${sr.title}`
+                                );
+                                return (
+                                  <Pressable
+                                    key={ri}
+                                    onPress={() => {
+                                      if (!alreadyAdded) {
+                                        handleAddReminder(item, sr);
+                                      }
+                                    }}
+                                    style={styles.reminderRow}
+                                  >
+                                    <View style={styles.reminderHeader}>
+                                      <Text style={styles.reminderIcon}>
+                                        {sr.icon}
                                       </Text>
-                                    )}
-                                  </View>
-                                  <View style={styles.reminderExpanded}>
-                                    <Text style={styles.reminderDesc}>
+                                      <Text
+                                        style={styles.reminderTitle}
+                                        numberOfLines={1}
+                                      >
+                                        {sr.title}
+                                      </Text>
+                                      {alreadyAdded && (
+                                        <Text style={styles.addedChip}>
+                                          ✓ Added
+                                        </Text>
+                                      )}
+                                    </View>
+                                    <Text
+                                      style={styles.reminderDesc}
+                                      numberOfLines={2}
+                                    >
                                       {sr.description}
                                     </Text>
                                     <View style={styles.reminderFooter}>
@@ -395,17 +434,17 @@ export default function InventoryScreen() {
                                           <Text
                                             style={styles.reminderAddBtnText}
                                           >
-                                            + Add reminder
+                                            + Add
                                           </Text>
                                         </Pressable>
                                       )}
                                     </View>
-                                  </View>
-                                </View>
-                              );
-                            })}
-                        </View>
-                      )}
+                                  </Pressable>
+                                );
+                              })}
+                          </View>
+                        );
+                      })()}
                   </View>
                 </Pressable>
               );
@@ -609,9 +648,11 @@ const styles = StyleSheet.create({
   remindersSectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: spacing.xs,
     paddingVertical: spacing.xs,
-    marginBottom: spacing.xs,
+    paddingHorizontal: spacing.xs + 2,
+    backgroundColor: colors.brandLighter,
+    borderRadius: radius.sm,
   },
   remindersSectionTitle: {
     flex: 1,
@@ -621,25 +662,37 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
+  remindersToggleHint: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: colors.brand,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  remindersChevron: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: colors.brand,
+    width: 14,
+    textAlign: "center",
+  },
   reminderRow: {
     borderTopWidth: 1,
     borderColor: colors.border,
-    paddingTop: spacing.xs,
+    paddingVertical: spacing.xs,
+    gap: 2,
   },
   reminderHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
-    paddingVertical: spacing.sm + 2,
-    borderBottomWidth: 1,
-    borderColor: colors.border,
+    gap: spacing.xs + 2,
   },
   reminderIcon: {
-    fontSize: 18,
+    fontSize: 14,
   },
   reminderTitle: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
     color: colors.text,
   },
@@ -659,36 +712,34 @@ const styles = StyleSheet.create({
     width: 18,
     textAlign: "center",
   },
-  reminderExpanded: {
-    paddingLeft: 30,
-    paddingBottom: spacing.sm,
-    gap: spacing.xs + 2,
-  },
   reminderDesc: {
-    fontSize: 12,
+    paddingLeft: 22,
+    fontSize: 11,
     color: colors.textMuted,
-    lineHeight: 17,
-    marginTop: spacing.xs,
+    lineHeight: 15,
   },
   reminderFooter: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingLeft: 22,
   },
   reminderFreq: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
     color: colors.textSubtle,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
   },
   reminderAddBtn: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 4,
     borderRadius: radius.pill,
     backgroundColor: colors.brand,
   },
   reminderAddBtnText: {
     color: "#ffffff",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
   },
   hint: {
