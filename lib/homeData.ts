@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { storagePrefix } from "./homes";
 import { generateId } from "./storage";
 import type { AskMessage, HomeItem } from "./types";
 
@@ -6,11 +7,13 @@ import type { AskMessage, HomeItem } from "./types";
 // Ask HandyBot conversation persistence
 // --------------------------------------------------------------------------
 
-const ASK_KEY = "handybot:ask_messages";
+function askKey() {
+  return storagePrefix() + "ask_messages";
+}
 
 export async function loadAskMessages(): Promise<AskMessage[]> {
   try {
-    const raw = await AsyncStorage.getItem(ASK_KEY);
+    const raw = await AsyncStorage.getItem(askKey());
     if (!raw) return [];
     return JSON.parse(raw) as AskMessage[];
   } catch {
@@ -19,22 +22,24 @@ export async function loadAskMessages(): Promise<AskMessage[]> {
 }
 
 export async function saveAskMessages(messages: AskMessage[]): Promise<void> {
-  await AsyncStorage.setItem(ASK_KEY, JSON.stringify(messages));
+  await AsyncStorage.setItem(askKey(), JSON.stringify(messages));
 }
 
 export async function clearAskMessages(): Promise<void> {
-  await AsyncStorage.removeItem(ASK_KEY);
+  await AsyncStorage.removeItem(askKey());
 }
 
 // --------------------------------------------------------------------------
 // Home inventory persistence
 // --------------------------------------------------------------------------
 
-const INVENTORY_KEY = "handybot:inventory";
+function inventoryKey() {
+  return storagePrefix() + "inventory";
+}
 
 export async function loadInventory(): Promise<HomeItem[]> {
   try {
-    const raw = await AsyncStorage.getItem(INVENTORY_KEY);
+    const raw = await AsyncStorage.getItem(inventoryKey());
     if (!raw) return [];
     return JSON.parse(raw) as HomeItem[];
   } catch {
@@ -43,7 +48,7 @@ export async function loadInventory(): Promise<HomeItem[]> {
 }
 
 export async function saveInventory(items: HomeItem[]): Promise<void> {
-  await AsyncStorage.setItem(INVENTORY_KEY, JSON.stringify(items));
+  await AsyncStorage.setItem(inventoryKey(), JSON.stringify(items));
 }
 
 export async function addHomeItem(item: HomeItem): Promise<void> {

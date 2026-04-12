@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import { storagePrefix } from "./homes";
 import { generateId } from "./storage";
 import type {
   MaintenanceTemplate,
@@ -9,7 +10,9 @@ import type {
   SuggestedReminder,
 } from "./types";
 
-const REMINDERS_KEY = "handybot:reminders";
+function remindersKey() {
+  return storagePrefix() + "reminders";
+}
 const PERMISSIONS_PROMPTED_KEY = "handybot:notifPrompted";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -81,7 +84,7 @@ export async function requestNotificationPermissions(): Promise<boolean> {
 
 export async function loadReminders(): Promise<Reminder[]> {
   try {
-    const raw = await AsyncStorage.getItem(REMINDERS_KEY);
+    const raw = await AsyncStorage.getItem(remindersKey());
     if (!raw) return [];
     const parsed = JSON.parse(raw) as Reminder[];
     return Array.isArray(parsed) ? parsed : [];
@@ -91,7 +94,7 @@ export async function loadReminders(): Promise<Reminder[]> {
 }
 
 async function saveReminders(reminders: Reminder[]): Promise<void> {
-  await AsyncStorage.setItem(REMINDERS_KEY, JSON.stringify(reminders));
+  await AsyncStorage.setItem(remindersKey(), JSON.stringify(reminders));
 }
 
 export async function getReminder(id: string): Promise<Reminder | undefined> {

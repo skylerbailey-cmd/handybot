@@ -4,6 +4,7 @@ import * as Notifications from "expo-notifications";
 import { useEffect, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { ensureMultiHomeSetup } from "@/lib/homes";
 import { ensureNotificationsConfigured } from "@/lib/reminders";
 import { colors } from "@/lib/theme";
 
@@ -20,8 +21,11 @@ export default function RootLayout() {
   const pendingColdStartReminderId = useRef<string | null>(null);
   const handledColdStart = useRef(false);
 
-  // One-time setup: display handler + Android channel.
+  // One-time setup: multi-home migration + notification handler.
   useEffect(() => {
+    ensureMultiHomeSetup().catch(() => {
+      /* ignore — defaults to "default" home */
+    });
     ensureNotificationsConfigured().catch(() => {
       /* ignore — we'll re-prompt when the user opens Reminders */
     });
@@ -98,6 +102,7 @@ export default function RootLayout() {
             name="history"
             options={{ title: "Repair History" }}
           />
+          <Stack.Screen name="homes" options={{ title: "My Homes" }} />
           <Stack.Screen name="reminders" options={{ title: "Reminders" }} />
           <Stack.Screen
             name="reminder/new"

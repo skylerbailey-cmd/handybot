@@ -1,13 +1,16 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
+import { storagePrefix } from "./homes";
 import type { Issue, User } from "./types";
 
-const ISSUES_KEY = "handybot:issues";
-const USER_KEY = "handybot:user";
+function issuesKey() {
+  return storagePrefix() + "issues";
+}
+const USER_KEY = "handybot:user"; // User is global, not per-home
 
 export async function loadIssues(): Promise<Issue[]> {
   try {
-    const raw = await AsyncStorage.getItem(ISSUES_KEY);
+    const raw = await AsyncStorage.getItem(issuesKey());
     if (!raw) return [];
     const parsed = JSON.parse(raw) as Issue[];
     return Array.isArray(parsed) ? parsed : [];
@@ -18,7 +21,7 @@ export async function loadIssues(): Promise<Issue[]> {
 }
 
 export async function saveIssues(issues: Issue[]): Promise<void> {
-  await AsyncStorage.setItem(ISSUES_KEY, JSON.stringify(issues));
+  await AsyncStorage.setItem(issuesKey(), JSON.stringify(issues));
 }
 
 export async function getIssue(id: string): Promise<Issue | undefined> {
@@ -82,7 +85,7 @@ export async function clearUser(): Promise<void> {
 }
 
 export async function wipeAllData(): Promise<void> {
-  await AsyncStorage.multiRemove([ISSUES_KEY, USER_KEY]);
+  await AsyncStorage.multiRemove([issuesKey(), USER_KEY]);
   const dir = `${FileSystem.documentDirectory}handybot/`;
   try {
     await FileSystem.deleteAsync(dir, { idempotent: true });

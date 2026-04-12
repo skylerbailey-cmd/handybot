@@ -11,6 +11,7 @@ import {
 import IssueCard from "@/components/IssueCard";
 import PrimaryButton from "@/components/PrimaryButton";
 import UpcomingRemindersCard from "@/components/UpcomingRemindersCard";
+import { getActiveHome, type Home } from "@/lib/homes";
 import { loadReminders } from "@/lib/reminders";
 import { ensureUser, loadIssues } from "@/lib/storage";
 import { colors, formatMoney, radius, spacing } from "@/lib/theme";
@@ -26,16 +27,19 @@ export default function HomeScreen() {
   const router = useRouter();
   const [issues, setIssues] = useState<Issue[] | null>(null);
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [activeHome, setActiveHome] = useState<Home | undefined>(undefined);
   const [refreshing, setRefreshing] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [, loadedIssues, loadedReminders] = await Promise.all([
+    const [, loadedIssues, loadedReminders, home] = await Promise.all([
       ensureUser(),
       loadIssues(),
       loadReminders(),
+      getActiveHome(),
     ]);
     setIssues(loadedIssues);
     setReminders(loadedReminders);
+    setActiveHome(home);
   }, []);
 
   useFocusEffect(
@@ -90,6 +94,19 @@ export default function HomeScreen() {
     <>
       <Stack.Screen
         options={{
+          title: activeHome ? `${activeHome.icon} ${activeHome.name}` : "HandyBot",
+          headerLeft: () => (
+            <Pressable
+              onPress={() => router.push("/homes")}
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.homeSwitcher,
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Text style={styles.homeSwitcherText}>Switch</Text>
+            </Pressable>
+          ),
           headerRight: () => (
             <View style={styles.headerActions}>
               <Link href="/reminders" asChild>
@@ -319,6 +336,17 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textAlign: "center",
     overflow: "hidden",
+  },
+  homeSwitcher: {
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.brandLight,
+  },
+  homeSwitcherText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: colors.brandDark,
   },
   headerActions: {
     flexDirection: "row",
