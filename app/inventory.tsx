@@ -71,6 +71,9 @@ export default function InventoryScreen() {
   const [items, setItems] = useState<HomeItem[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [adding, setAdding] = useState(false);
+  const [expandedReminders, setExpandedReminders] = useState<Set<string>>(
+    new Set()
+  );
   const [msgIndex, setMsgIndex] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
@@ -344,50 +347,75 @@ export default function InventoryScreen() {
                       item.suggestedReminders.length > 0 && (
                         <View style={styles.remindersSection}>
                           <Text style={styles.remindersSectionTitle}>
-                            🔔 Smart reminders
+                            🔔 Smart reminders ({item.suggestedReminders.length})
                           </Text>
                           {item.suggestedReminders.map((sr, ri) => {
+                            const key = `${item.id}:${ri}`;
+                            // First reminder is expanded by default
+                            const isExpanded =
+                              ri === 0 || expandedReminders.has(key);
                             const alreadyAdded = addedReminderTitles.has(
                               `${item.id}:${sr.title}`
                             );
                             return (
-                              <View key={ri} style={styles.reminderRow}>
-                                <Text style={styles.reminderIcon}>
-                                  {sr.icon}
-                                </Text>
-                                <View style={styles.reminderBody}>
-                                  <Text style={styles.reminderTitle}>
+                              <View key={ri}>
+                                <Pressable
+                                  onPress={() => {
+                                    setExpandedReminders((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(key)) next.delete(key);
+                                      else next.add(key);
+                                      return next;
+                                    });
+                                  }}
+                                  style={styles.reminderHeader}
+                                >
+                                  <Text style={styles.reminderIcon}>
+                                    {sr.icon}
+                                  </Text>
+                                  <Text
+                                    style={styles.reminderTitle}
+                                    numberOfLines={1}
+                                  >
                                     {sr.title}
                                   </Text>
-                                  <Text
-                                    style={styles.reminderDesc}
-                                    numberOfLines={2}
-                                  >
-                                    {sr.description}
-                                  </Text>
-                                  <Text style={styles.reminderFreq}>
-                                    {formatFrequency(sr.frequencyDays)}
-                                  </Text>
-                                </View>
-                                <Pressable
-                                  onPress={() => handleAddReminder(item, sr)}
-                                  disabled={alreadyAdded}
-                                  style={[
-                                    styles.reminderAddBtn,
-                                    alreadyAdded &&
-                                      styles.reminderAddBtnAdded,
-                                  ]}
-                                >
-                                  <Text
-                                    style={[
-                                      styles.reminderAddBtnText,
-                                      alreadyAdded &&
-                                        styles.reminderAddBtnTextAdded,
-                                    ]}
-                                  >
-                                    {alreadyAdded ? "✓" : "+"}
+                                  {alreadyAdded && (
+                                    <Text style={styles.addedChip}>
+                                      ✓ Added
+                                    </Text>
+                                  )}
+                                  <Text style={styles.arrow}>
+                                    {isExpanded ? "▾" : "▸"}
                                   </Text>
                                 </Pressable>
+                                {isExpanded && (
+                                  <View style={styles.reminderExpanded}>
+                                    <Text
+                                      style={styles.reminderDesc}
+                                    >
+                                      {sr.description}
+                                    </Text>
+                                    <View style={styles.reminderFooter}>
+                                      <Text style={styles.reminderFreq}>
+                                        {formatFrequency(sr.frequencyDays)}
+                                      </Text>
+                                      {!alreadyAdded && (
+                                        <Pressable
+                                          onPress={() =>
+                                            handleAddReminder(item, sr)
+                                          }
+                                          style={styles.reminderAddBtn}
+                                        >
+                                          <Text
+                                            style={styles.reminderAddBtnText}
+                                          >
+                                            + Add reminder
+                                          </Text>
+                                        </Pressable>
+                                      )}
+                                    </View>
+                                  </View>
+                                )}
                               </View>
                             );
                           })}
@@ -591,7 +619,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     borderTopWidth: 1,
     borderColor: colors.border,
-    gap: spacing.sm,
+    gap: 2,
   },
   remindersSectionTitle: {
     fontSize: 11,
@@ -599,54 +627,72 @@ const styles = StyleSheet.create({
     color: colors.text,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+    marginBottom: spacing.xs,
   },
-  reminderRow: {
+  reminderHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
+    paddingVertical: spacing.sm + 2,
+    borderBottomWidth: 1,
+    borderColor: colors.border,
   },
   reminderIcon: {
     fontSize: 18,
   },
-  reminderBody: {
-    flex: 1,
-    minWidth: 0,
-  },
   reminderTitle: {
+    flex: 1,
     fontSize: 13,
     fontWeight: "700",
     color: colors.text,
   },
+  addedChip: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: colors.success,
+    backgroundColor: colors.successBg,
+    paddingHorizontal: spacing.xs + 2,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    overflow: "hidden",
+  },
+  arrow: {
+    fontSize: 14,
+    color: colors.textSubtle,
+    width: 18,
+    textAlign: "center",
+  },
+  reminderExpanded: {
+    paddingLeft: 30,
+    paddingBottom: spacing.sm,
+    gap: spacing.xs + 2,
+  },
   reminderDesc: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.textMuted,
-    lineHeight: 15,
-    marginTop: 1,
+    lineHeight: 17,
+    marginTop: spacing.xs,
+  },
+  reminderFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   reminderFreq: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "700",
     color: colors.textSubtle,
-    marginTop: 2,
   },
   reminderAddBtn: {
-    width: 32,
-    height: 32,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
     borderRadius: radius.pill,
     backgroundColor: colors.brand,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  reminderAddBtnAdded: {
-    backgroundColor: colors.successBg,
   },
   reminderAddBtnText: {
     color: "#ffffff",
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: "800",
-  },
-  reminderAddBtnTextAdded: {
-    color: colors.success,
   },
   hint: {
     textAlign: "center",
