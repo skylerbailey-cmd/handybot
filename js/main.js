@@ -55,7 +55,7 @@ const observer = new IntersectionObserver((entries) => {
 // Add fade-in class to elements and observe them
 function initAnimations() {
   const animateElements = document.querySelectorAll(
-    '.service-card, .step-card, .testimonial-card, .about-list li, .contact-item'
+    '.service-card, .step-card, .testimonial-card, .about-list li, .contact-item, .feature-card, .feature-row, .mockup-item, .mockup-reminder, .mockup-project'
   );
 
   animateElements.forEach((el, index) => {
@@ -78,7 +78,7 @@ contactForm.addEventListener('submit', function (e) {
   const data = Object.fromEntries(formData.entries());
 
   // Basic validation
-  if (!data.name || !data.email || !data.service || !data.message) {
+  if (!data.name || !data.email) {
     return;
   }
 
@@ -87,8 +87,8 @@ contactForm.addEventListener('submit', function (e) {
   formWrapper.innerHTML = `
     <div class="form-success show">
       <div class="success-icon">&#10004;</div>
-      <h3>Thank You!</h3>
-      <p>Your request has been submitted successfully. We'll get back to you within 24 hours with a quote for your project.</p>
+      <h3>You're on the List!</h3>
+      <p>Thanks for signing up! We'll notify you as soon as Handy-Man is ready. You'll be among the first to try it.</p>
     </div>
   `;
 
