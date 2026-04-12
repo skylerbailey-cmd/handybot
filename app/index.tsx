@@ -67,7 +67,12 @@ export default function HomeScreen() {
   const totalSaved = useMemo(() => {
     if (!issues) return 0;
     return issues
-      .filter((i) => i.status === "resolved")
+      .filter((i) => {
+        if (i.status === "resolved") return true;
+        const total = i.plan.steps.length;
+        const done = i.plan.steps.filter((s) => s.completed).length;
+        return total > 0 && done === total;
+      })
       .reduce((sum, i) => sum + (i.plan.estimatedSavingsUsd ?? 0), 0);
   }, [issues]);
 
@@ -140,6 +145,19 @@ export default function HomeScreen() {
                 style={styles.heroButton}
               />
             </View>
+            {totalSaved > 0 && (
+              <View style={styles.totalSavedCard}>
+                <Text style={styles.totalSavedIcon}>💰</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.totalSavedAmount}>
+                    {formatMoney(totalSaved)} saved
+                  </Text>
+                  <Text style={styles.totalSavedSub}>
+                    by doing repairs yourself instead of hiring pros
+                  </Text>
+                </View>
+              </View>
+            )}
             <UpcomingRemindersCard reminders={upcomingReminders} />
           </View>
         }
@@ -150,17 +168,7 @@ export default function HomeScreen() {
             <EmptyState onNew={() => router.push("/new")} />
           )
         }
-        ListFooterComponent={
-          hasAnyIssues && totalSaved > 0 ? (
-            <View style={styles.totalSavedFooter}>
-              <Text style={styles.totalSavedIcon}>💰</Text>
-              <Text style={styles.totalSavedText}>
-                You&apos;ve saved {formatMoney(totalSaved)} doing repairs
-                yourself
-              </Text>
-            </View>
-          ) : null
-        }
+        ListFooterComponent={null}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -273,15 +281,18 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   headerBtn: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    width: 40,
+    height: 40,
+    borderRadius: radius.pill,
+    backgroundColor: "#f5f5f4",
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerBtnText: {
-    fontSize: 26,
-    color: colors.textMuted,
+    fontSize: 22,
   },
   skeleton: {
     height: 88,
@@ -320,25 +331,28 @@ const styles = StyleSheet.create({
     textAlign: "center",
     maxWidth: 320,
   },
-  totalSavedFooter: {
+  totalSavedCard: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    marginTop: spacing.xl,
-    padding: spacing.md + 2,
+    gap: spacing.md,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
     borderRadius: radius.lg,
-    backgroundColor: colors.successBg,
+    backgroundColor: "#ecfdf5",
     borderWidth: 1,
     borderColor: "#a7f3d0",
   },
   totalSavedIcon: {
-    fontSize: 20,
+    fontSize: 32,
   },
-  totalSavedText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "700",
+  totalSavedAmount: {
+    fontSize: 22,
+    fontWeight: "900",
     color: "#065f46",
+  },
+  totalSavedSub: {
+    fontSize: 12,
+    color: "#047857",
+    marginTop: 2,
   },
 });
