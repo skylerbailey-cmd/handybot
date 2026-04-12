@@ -1,6 +1,14 @@
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  Linking,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import PrimaryButton from "@/components/PrimaryButton";
 import { scheduleTestNotification } from "@/lib/reminders";
 import { clearUser, ensureUser, wipeAllData } from "@/lib/storage";
@@ -8,6 +16,8 @@ import { colors, radius, spacing } from "@/lib/theme";
 import type { User } from "@/lib/types";
 
 const TEST_NOTIFICATION_DELAY_SECONDS = 5;
+const SUPPORT_EMAIL = "support@grnd-lab.com";
+const APP_VERSION = "0.1";
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -39,6 +49,42 @@ export default function SettingsScreen() {
       Alert.alert("Could not schedule", msg);
     } finally {
       setTestPending(false);
+    }
+  }
+
+  async function handleContactSupport() {
+    const subject = "HandyBot feedback";
+    const body =
+      "\n\n---\nApp version: " +
+      APP_VERSION +
+      "\nPlatform: " +
+      Platform.OS +
+      (user ? "\nUser ID: " + user.id.slice(0, 10) : "");
+    const url =
+      "mailto:" +
+      SUPPORT_EMAIL +
+      "?subject=" +
+      encodeURIComponent(subject) +
+      "&body=" +
+      encodeURIComponent(body);
+
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (!canOpen) {
+        Alert.alert(
+          "No email app found",
+          "We couldn't open your email app. Drop us a line at " +
+            SUPPORT_EMAIL +
+            " and we'll get back to you."
+        );
+        return;
+      }
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert(
+        "Couldn't open email",
+        "Email us directly at " + SUPPORT_EMAIL + "."
+      );
     }
   }
 
@@ -112,6 +158,20 @@ export default function SettingsScreen() {
         />
       </View>
 
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Contact us</Text>
+        <Text style={styles.cardBody}>
+          Found a bug? Have an idea? Something HandyBot got wrong? We&apos;d
+          love to hear from you.
+        </Text>
+        <PrimaryButton
+          title={`Email ${SUPPORT_EMAIL}`}
+          onPress={handleContactSupport}
+          variant="secondary"
+          style={{ marginTop: spacing.md }}
+        />
+      </View>
+
       <View style={[styles.card, { gap: spacing.md }]}>
         <PrimaryButton title="Sign out" onPress={handleSignOut} variant="secondary" />
         <PrimaryButton
@@ -121,7 +181,9 @@ export default function SettingsScreen() {
         />
       </View>
 
-      <Text style={styles.footer}>HandyBot v0.1 — powered by Claude</Text>
+      <Text style={styles.footer}>
+        HandyBot v{APP_VERSION} — powered by Claude
+      </Text>
     </ScrollView>
   );
 }
