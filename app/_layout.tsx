@@ -99,6 +99,10 @@ export default function RootLayout() {
             options={{ title: "Home Inventory" }}
           />
           <Stack.Screen
+            name="inventory-edit"
+            options={{ title: "Edit Item", presentation: "card" }}
+          />
+          <Stack.Screen
             name="history"
             options={{ title: "Repair History" }}
           />
