@@ -398,47 +398,38 @@ export default function InventoryScreen() {
                                     }}
                                     style={styles.reminderRow}
                                   >
-                                    <View style={styles.reminderHeader}>
-                                      <Text style={styles.reminderIcon}>
-                                        {sr.icon}
-                                      </Text>
+                                    <Text style={styles.reminderIcon}>
+                                      {sr.icon}
+                                    </Text>
+                                    <View style={styles.reminderBody}>
                                       <Text
                                         style={styles.reminderTitle}
                                         numberOfLines={1}
                                       >
                                         {sr.title}
                                       </Text>
-                                      {alreadyAdded && (
-                                        <Text style={styles.addedChip}>
-                                          ✓ Added
-                                        </Text>
-                                      )}
-                                    </View>
-                                    <Text
-                                      style={styles.reminderDesc}
-                                      numberOfLines={2}
-                                    >
-                                      {sr.description}
-                                    </Text>
-                                    <View style={styles.reminderFooter}>
-                                      <Text style={styles.reminderFreq}>
-                                        {formatFrequency(sr.frequencyDays)}
+                                      <Text
+                                        style={styles.reminderDesc}
+                                        numberOfLines={1}
+                                      >
+                                        {formatFrequency(sr.frequencyDays)} · {sr.description}
                                       </Text>
-                                      {!alreadyAdded && (
-                                        <Pressable
-                                          onPress={() =>
-                                            handleAddReminder(item, sr)
-                                          }
-                                          style={styles.reminderAddBtn}
-                                        >
-                                          <Text
-                                            style={styles.reminderAddBtnText}
-                                          >
-                                            + Add
-                                          </Text>
-                                        </Pressable>
-                                      )}
                                     </View>
+                                    {alreadyAdded ? (
+                                      <Text style={styles.addedChip}>✓</Text>
+                                    ) : (
+                                      <Pressable
+                                        onPress={() =>
+                                          handleAddReminder(item, sr)
+                                        }
+                                        style={styles.reminderAddCircle}
+                                        hitSlop={8}
+                                      >
+                                        <Text style={styles.reminderAddCircleText}>
+                                          +
+                                        </Text>
+                                      </Pressable>
+                                    )}
                                   </Pressable>
                                 );
                               })}
@@ -677,21 +668,21 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   reminderRow: {
-    borderTopWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: spacing.xs,
-    gap: 2,
-  },
-  reminderHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs + 2,
+    borderTopWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing.xs + 2,
+  },
+  reminderBody: {
+    flex: 1,
+    gap: 1,
   },
   reminderIcon: {
     fontSize: 14,
   },
   reminderTitle: {
-    flex: 1,
     fontSize: 12,
     fontWeight: "700",
     color: colors.text,
@@ -713,34 +704,24 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   reminderDesc: {
-    paddingLeft: 22,
     fontSize: 11,
     color: colors.textMuted,
-    lineHeight: 15,
+    lineHeight: 14,
   },
-  reminderFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingLeft: 22,
-  },
-  reminderFreq: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: colors.textSubtle,
-    textTransform: "uppercase",
-    letterSpacing: 0.3,
-  },
-  reminderAddBtn: {
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
+  reminderAddCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: colors.brand,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  reminderAddBtnText: {
+  reminderAddCircleText: {
     color: "#ffffff",
-    fontSize: 11,
-    fontWeight: "800",
+    fontSize: 18,
+    fontWeight: "700",
+    lineHeight: 20,
+    marginTop: -2,
   },
   hint: {
     textAlign: "center",
