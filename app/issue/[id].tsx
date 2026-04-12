@@ -114,8 +114,22 @@ export default function IssueWorkspaceScreen() {
     const steps = issue.plan.steps.map((s) =>
       s.id === stepId ? { ...s, completed } : s
     );
+    const allDone =
+      steps.length > 0 && steps.every((s) => s.completed);
+
+    // Auto-manage status based on step completion:
+    // - All steps done → "completed" (unless already "verified")
+    // - Not all done → back to "in_progress"
+    let status = issue.status;
+    if (allDone && status === "in_progress") {
+      status = "completed";
+    } else if (!allDone && (status === "completed" || status === "verified")) {
+      status = "in_progress";
+    }
+
     persist({
       ...issue,
+      status,
       plan: { ...issue.plan, steps },
       updatedAt: Date.now(),
     });
@@ -185,8 +199,11 @@ export default function IssueWorkspaceScreen() {
 
   function openOverflow() {
     if (!issue) return;
-    const toggleLabel =
-      issue.status === "resolved" ? "Mark as in progress" : "Mark as resolved";
+    const isFinished =
+      issue.status === "completed" || issue.status === "verified";
+    const toggleLabel = isFinished
+      ? "Mark as in progress"
+      : "Mark as completed";
     if (Platform.OS === "ios") {
       ActionSheetIOS.showActionSheetWithOptions(
         {
@@ -217,9 +234,11 @@ export default function IssueWorkspaceScreen() {
 
   async function toggleResolved() {
     if (!issue) return;
+    const isFinished =
+      issue.status === "completed" || issue.status === "verified";
     await persist({
       ...issue,
-      status: issue.status === "resolved" ? "in_progress" : "resolved",
+      status: isFinished ? "in_progress" : "completed",
       updatedAt: Date.now(),
     });
   }
@@ -460,15 +479,15 @@ export default function IssueWorkspaceScreen() {
       await persist({
         ...issue,
         plan: updatedPlan,
-        // Auto-resolve when verification passes — moves the project
-        // from Ongoing to Completed on the home screen.
-        status: verifyResult.verified ? "resolved" : issue.status,
+        // Auto-verify when verification passes — moves the project
+        // from Completed to the Verified section on the home screen.
+        status: verifyResult.verified ? "verified" : issue.status,
         updatedAt: Date.now(),
       });
       if (verifyResult.verified) {
         Alert.alert(
           "Repair verified!",
-          "Great work — this project has been moved to your Completed repairs."
+          "Great work — this project has been moved to your Verified repairs."
         );
       } else if (verifyResult.fixSteps.length > 0) {
         Alert.alert(

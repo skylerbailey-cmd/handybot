@@ -53,7 +53,9 @@ export default function IssueCard({ issue }: { issue: Issue }) {
   const progressPct =
     stepsTotal === 0 ? 0 : Math.round((stepsDone / stepsTotal) * 100);
   const isComplete =
-    issue.status === "resolved" || (stepsTotal > 0 && stepsDone === stepsTotal);
+    issue.status === "completed" ||
+    issue.status === "verified" ||
+    (stepsTotal > 0 && stepsDone === stepsTotal);
   const savingsLabel = formatMoney(issue.plan.estimatedSavingsUsd ?? 0);
   const risk = issue.plan.risk;
 
@@ -93,9 +95,14 @@ export default function IssueCard({ issue }: { issue: Issue }) {
             <Text style={styles.title} numberOfLines={1}>
               {issue.title || "Untitled repair"}
             </Text>
-            {issue.status === "resolved" && (
-              <View style={styles.resolvedBadge}>
-                <Text style={styles.resolvedBadgeText}>Resolved</Text>
+            {issue.status === "completed" && (
+              <View style={styles.completedBadge}>
+                <Text style={styles.completedBadgeText}>Completed</Text>
+              </View>
+            )}
+            {issue.status === "verified" && (
+              <View style={styles.verifiedBadge}>
+                <Text style={styles.verifiedBadgeText}>Verified</Text>
               </View>
             )}
           </View>
@@ -216,13 +223,24 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.text,
   },
-  resolvedBadge: {
+  completedBadge: {
+    backgroundColor: "#e0e7ff",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+  },
+  completedBadgeText: {
+    color: "#4338ca",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  verifiedBadge: {
     backgroundColor: colors.successBg,
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderRadius: radius.pill,
   },
-  resolvedBadgeText: {
+  verifiedBadgeText: {
     color: colors.success,
     fontSize: 11,
     fontWeight: "600",

@@ -60,7 +60,7 @@ export interface ChatMessage {
   relatedStepId?: string;
 }
 
-export type IssueStatus = "in_progress" | "resolved";
+export type IssueStatus = "in_progress" | "completed" | "verified";
 
 export type Difficulty = "Easy" | "Medium" | "Hard" | "Call a pro";
 

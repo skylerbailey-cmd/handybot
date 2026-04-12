@@ -52,8 +52,9 @@ export default function HomeScreen() {
 
   const sections = useMemo<IssueSection[]>(() => {
     if (!issues) return [];
-    const ongoing = issues.filter((i) => i.status !== "resolved");
-    const completed = issues.filter((i) => i.status === "resolved");
+    const ongoing = issues.filter((i) => i.status === "in_progress");
+    const completed = issues.filter((i) => i.status === "completed");
+    const verified = issues.filter((i) => i.status === "verified");
     const result: IssueSection[] = [];
     if (ongoing.length > 0) {
       result.push({ key: "ongoing", title: "Ongoing", data: ongoing });
@@ -61,18 +62,18 @@ export default function HomeScreen() {
     if (completed.length > 0) {
       result.push({ key: "completed", title: "Completed", data: completed });
     }
+    if (verified.length > 0) {
+      result.push({ key: "verified", title: "Verified", data: verified });
+    }
     return result;
   }, [issues]);
 
   const totalSaved = useMemo(() => {
     if (!issues) return 0;
     return issues
-      .filter((i) => {
-        if (i.status === "resolved") return true;
-        const total = i.plan.steps.length;
-        const done = i.plan.steps.filter((s) => s.completed).length;
-        return total > 0 && done === total;
-      })
+      .filter(
+        (i) => i.status === "completed" || i.status === "verified"
+      )
       .reduce((sum, i) => sum + (i.plan.estimatedSavingsUsd ?? 0), 0);
   }, [issues]);
 
@@ -113,7 +114,8 @@ export default function HomeScreen() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>{section.title}</Text>
             <View style={styles.sectionMeta}>
-              {section.key === "completed" && totalSaved > 0 && (
+              {(section.key === "completed" || section.key === "verified") &&
+              totalSaved > 0 && (
                 <Text style={styles.savedTotal}>
                   ✓ Saved {formatMoney(totalSaved)} total
                 </Text>
