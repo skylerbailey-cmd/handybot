@@ -1,7 +1,9 @@
 import { Stack, useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
+  Animated,
   Image,
   Pressable,
   ScrollView,
@@ -9,6 +11,17 @@ import {
   Text,
   View,
 } from "react-native";
+
+const ANALYZING_MESSAGES = [
+  "Analyzing your photo...",
+  "Identifying the item...",
+  "Estimating age and condition...",
+  "Checking for wear and damage...",
+  "Building maintenance tips...",
+  "Almost done...",
+];
+
+const MESSAGE_INTERVAL_MS = 3000;
 import PrimaryButton from "@/components/PrimaryButton";
 import { analyzeHomeItem } from "@/lib/claude";
 import {
@@ -54,6 +67,54 @@ export default function InventoryScreen() {
   const router = useRouter();
   const [items, setItems] = useState<HomeItem[]>([]);
   const [adding, setAdding] = useState(false);
+  const [msgIndex, setMsgIndex] = useState(0);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!adding) {
+      setMsgIndex(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => {
+        setMsgIndex((prev) => (prev + 1) % ANALYZING_MESSAGES.length);
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }).start();
+      });
+    }, MESSAGE_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [adding, fadeAnim]);
+  const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!adding) {
+      setLoadingMsgIndex(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => {
+        setLoadingMsgIndex((prev) => (prev + 1) % ANALYZING_MESSAGES.length);
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }).start();
+      });
+    }, MESSAGE_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [adding, fadeAnim]);
 
   const refresh = useCallback(async () => {
     setItems(await loadInventory());
@@ -278,6 +339,34 @@ export default function InventoryScreen() {
           <Text style={styles.hint}>Long-press an item to remove it.</Text>
         )}
       </ScrollView>
+
+      {adding && (
+        <View style={styles.loadingOverlay} pointerEvents="auto">
+          <View style={styles.loadingCard}>
+            <ActivityIndicator color={colors.brand} size="large" />
+            <Animated.Text
+              style={[styles.loadingMessage, { opacity: fadeAnim }]}
+            >
+              {ANALYZING_MESSAGES[msgIndex]}
+            </Animated.Text>
+            <View style={styles.loadingDots}>
+              {ANALYZING_MESSAGES.map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.loadingDot,
+                    i === msgIndex && styles.loadingDotActive,
+                    i < msgIndex && styles.loadingDotPast,
+                  ]}
+                />
+              ))}
+            </View>
+            <Text style={styles.loadingHint}>
+              This usually takes 10–15 seconds
+            </Text>
+          </View>
+        </View>
+      )}
     </>
   );
 }
@@ -437,5 +526,61 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textSubtle,
     marginTop: spacing.md,
+  },
+  loadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(28,25,23,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.xl,
+  },
+  loadingCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.xl + 4,
+    alignItems: "center",
+    gap: spacing.md,
+    minWidth: 280,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 5,
+  },
+  loadingMessage: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.text,
+    textAlign: "center",
+    minHeight: 22,
+  },
+  loadingDots: {
+    flexDirection: "row",
+    gap: 6,
+    marginTop: spacing.xs,
+  },
+  loadingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#e7e5e4",
+  },
+  loadingDotActive: {
+    backgroundColor: colors.brand,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  loadingDotPast: {
+    backgroundColor: colors.brandLight,
+  },
+  loadingHint: {
+    fontSize: 12,
+    color: colors.textSubtle,
+    marginTop: spacing.xs,
   },
 });
