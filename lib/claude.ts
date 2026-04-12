@@ -1148,6 +1148,33 @@ const ANALYZE_ITEM_TOOL = {
         type: "string",
         description: "Single emoji that best represents this item.",
       },
+      suggested_reminders: {
+        type: "array",
+        description:
+          "1-4 recurring maintenance reminders specific to THIS item based on what you identified. For example, a water heater → 'Flush sediment annually', an HVAC unit → 'Replace filter every 90 days', a fridge → 'Vacuum condenser coils every 6 months'. Each reminder should be a concrete, actionable task the homeowner can do themselves. Tailor frequency to the item's age and condition — older items may need more frequent checks.",
+        items: {
+          type: "object",
+          properties: {
+            title: {
+              type: "string",
+              description: "Short imperative title.",
+            },
+            description: {
+              type: "string",
+              description: "1-2 sentences explaining what to do.",
+            },
+            frequency_days: {
+              type: "integer",
+              description: "How often in days (30, 90, 180, 365, etc.).",
+            },
+            icon: {
+              type: "string",
+              description: "Single emoji for this reminder.",
+            },
+          },
+          required: ["title", "description", "frequency_days"],
+        },
+      },
     },
     required: [
       "name",
@@ -1158,6 +1185,7 @@ const ANALYZE_ITEM_TOOL = {
       "condition_notes",
       "maintenance_tips",
       "icon",
+      "suggested_reminders",
     ],
   },
 } as const;
@@ -1175,6 +1203,12 @@ export interface AnalyzedItem {
   conditionNotes: string;
   maintenanceTips: string[];
   icon: string;
+  suggestedReminders: Array<{
+    title: string;
+    description: string;
+    frequencyDays: number;
+    icon: string;
+  }>;
 }
 
 export async function analyzeHomeItem(args: {
@@ -1221,6 +1255,18 @@ export async function analyzeHomeItem(args: {
   const rawCondition = String(raw.condition ?? "fair");
   const condition = conditions.find((c) => c === rawCondition) ?? "fair";
 
+  const rawReminders = Array.isArray(raw.suggested_reminders)
+    ? (raw.suggested_reminders as Array<Record<string, unknown>>)
+    : [];
+  const suggestedReminders = rawReminders
+    .map((r) => ({
+      title: String(r.title ?? "").trim(),
+      description: String(r.description ?? "").trim(),
+      frequencyDays: Number(r.frequency_days) || 0,
+      icon: String(r.icon ?? "🛠").trim().slice(0, 4) || "🛠",
+    }))
+    .filter((r) => r.title.length > 0 && r.frequencyDays > 0);
+
   return {
     name: String(raw.name ?? "Unknown item").trim(),
     category: String(raw.category ?? "other").trim(),
@@ -1232,5 +1278,6 @@ export async function analyzeHomeItem(args: {
       ? (raw.maintenance_tips as string[]).map((t) => String(t).trim()).filter(Boolean)
       : [],
     icon: String(raw.icon ?? "🏠").trim().slice(0, 4) || "🏠",
+    suggestedReminders,
   };
 }

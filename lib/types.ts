@@ -245,6 +245,13 @@ export interface User {
 
 export type ItemCondition = "good" | "fair" | "poor" | "replace_soon";
 
+export interface HomeItemReminder {
+  title: string;
+  description: string;
+  frequencyDays: number;
+  icon: string;
+}
+
 export interface HomeItem {
   id: string;
   name: string;
@@ -258,6 +265,8 @@ export interface HomeItem {
   condition: ItemCondition;
   conditionNotes: string;
   maintenanceTips: string[];
+  /** Claude-generated recurring maintenance reminders specific to this item. */
+  suggestedReminders?: HomeItemReminder[];
   createdAt: number;
   updatedAt: number;
 }
