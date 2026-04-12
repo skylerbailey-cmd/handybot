@@ -99,30 +99,6 @@ export default function InventoryScreen() {
     }, MESSAGE_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [adding, fadeAnim]);
-  const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    if (!adding) {
-      setLoadingMsgIndex(0);
-      return;
-    }
-    const interval = setInterval(() => {
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }).start(() => {
-        setLoadingMsgIndex((prev) => (prev + 1) % ANALYZING_MESSAGES.length);
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }).start();
-      });
-    }, MESSAGE_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [adding, fadeAnim]);
 
   const refresh = useCallback(async () => {
     const [loadedItems, loadedReminders] = await Promise.all([
