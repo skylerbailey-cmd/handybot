@@ -10,8 +10,15 @@ import {
   View,
 } from "react-native";
 import PrimaryButton from "@/components/PrimaryButton";
+import { runInitialBackfill, type MigrateProgress } from "@/lib/cloud/migrate";
 import { scheduleTestNotification } from "@/lib/reminders";
 import { clearUser, ensureUser, wipeAllData } from "@/lib/storage";
+import {
+  hydrateSubscription,
+  isCloudBackupEnabled,
+  setCloudBackupEnabled,
+} from "@/lib/subscription";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { User } from "@/lib/types";
 
@@ -23,10 +30,71 @@ export default function SettingsScreen() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [testPending, setTestPending] = useState(false);
+  const [cloudBackup, setCloudBackup] = useState<boolean>(isCloudBackupEnabled());
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupStatus, setBackupStatus] = useState<string | null>(null);
 
   useEffect(() => {
     ensureUser().then(setUser);
+    // Refresh the toggle from AsyncStorage in case it was hydrated after
+    // this screen first rendered.
+    hydrateSubscription().then(setCloudBackup);
   }, []);
+
+  async function handleToggleCloudBackup() {
+    if (backupBusy) return;
+    if (!isSupabaseConfigured()) {
+      Alert.alert(
+        "Cloud backup unavailable",
+        "Supabase isn't configured in this build. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in .env and reload the app."
+      );
+      return;
+    }
+
+    if (cloudBackup) {
+      // Turning OFF — just flip the flag. The data already in the cloud
+      // stays there; the user can re-enable to resume syncing.
+      Alert.alert(
+        "Turn off cloud backup?",
+        "New changes will stay on this device only. Data already uploaded to the cloud will remain there.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Turn off",
+            style: "destructive",
+            onPress: async () => {
+              await setCloudBackupEnabled(false);
+              setCloudBackup(false);
+              setBackupStatus(null);
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    // Turning ON — enable the flag first so future writes mirror up, then
+    // do the one-time backfill of everything already in local storage.
+    setBackupBusy(true);
+    setBackupStatus("Starting backup…");
+    try {
+      await setCloudBackupEnabled(true);
+      setCloudBackup(true);
+      await runInitialBackfill((p: MigrateProgress) => {
+        setBackupStatus(p.message);
+      });
+      setBackupStatus("Backup complete — all data is synced.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setBackupStatus(`Backup failed: ${msg}`);
+      Alert.alert(
+        "Backup failed",
+        `${msg}\n\nYour local data is safe. Toggle cloud backup off and on again to retry.`
+      );
+    } finally {
+      setBackupBusy(false);
+    }
+  }
 
   async function handleTestNotification() {
     if (testPending) return;
@@ -122,10 +190,48 @@ export default function SettingsScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.card}>
+        <Text style={styles.cardTitle}>Cloud backup</Text>
+        <Text style={styles.cardBody}>
+          {cloudBackup
+            ? "Your repairs, reminders, and home inventory are being backed up so you can use HandyBot on any device."
+            : "HandyBot stores everything on this device for free. Turn on cloud backup to access your data on multiple devices."}
+        </Text>
+        <View style={{ marginTop: spacing.md, gap: spacing.xs }}>
+          <Row
+            label="Status"
+            value={cloudBackup ? "On (paid)" : "Off (local only)"}
+          />
+          <Row
+            label="Server"
+            value={isSupabaseConfigured() ? "Configured" : "Not configured"}
+          />
+        </View>
+        {backupStatus && (
+          <Text style={[styles.cardBody, { marginTop: spacing.sm }]}>
+            {backupStatus}
+          </Text>
+        )}
+        <PrimaryButton
+          title={
+            backupBusy
+              ? "Backing up…"
+              : cloudBackup
+                ? "Turn off cloud backup"
+                : "Turn on cloud backup"
+          }
+          onPress={handleToggleCloudBackup}
+          loading={backupBusy}
+          variant={cloudBackup ? "secondary" : "primary"}
+          style={{ marginTop: spacing.md }}
+        />
+      </View>
+
+      <View style={styles.card}>
         <Text style={styles.cardTitle}>Account</Text>
         <Text style={styles.cardBody}>
-          HandyBot stores your repairs on this device. There&apos;s nothing
-          else to it.
+          {cloudBackup
+            ? "Your account is backed up to the cloud."
+            : "HandyBot stores your repairs on this device. There\u2019s nothing else to it."}
         </Text>
         {user && (
           <View style={{ marginTop: spacing.md, gap: spacing.xs }}>

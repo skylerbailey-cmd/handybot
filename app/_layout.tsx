@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ensureMultiHomeSetup } from "@/lib/homes";
 import { ensureNotificationsConfigured } from "@/lib/reminders";
+import { hydrateSubscription } from "@/lib/subscription";
 import { colors } from "@/lib/theme";
 
 export default function RootLayout() {
@@ -21,13 +22,18 @@ export default function RootLayout() {
   const pendingColdStartReminderId = useRef<string | null>(null);
   const handledColdStart = useRef(false);
 
-  // One-time setup: multi-home migration + notification handler.
+  // One-time setup: multi-home migration + notification handler +
+  // subscription tier hydration (so save hooks know if they should
+  // mirror writes to Supabase).
   useEffect(() => {
     ensureMultiHomeSetup().catch(() => {
       /* ignore — defaults to "default" home */
     });
     ensureNotificationsConfigured().catch(() => {
       /* ignore — we'll re-prompt when the user opens Reminders */
+    });
+    hydrateSubscription().catch(() => {
+      /* ignore — defaults to free tier / local-only */
     });
   }, []);
 
