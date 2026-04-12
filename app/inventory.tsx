@@ -31,11 +31,7 @@ import {
   removeHomeItem,
 } from "@/lib/homeData";
 import { promptAndPickImage, readImageAsBase64 } from "@/lib/image";
-import {
-  createReminderFromSuggestion,
-  formatFrequency,
-  loadReminders,
-} from "@/lib/reminders";
+import { formatFrequency, loadReminders } from "@/lib/reminders";
 import { generateId } from "@/lib/storage";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { HomeItem, Reminder } from "@/lib/types";
@@ -127,30 +123,20 @@ export default function InventoryScreen() {
     return titles;
   }, [reminders]);
 
-  async function handleAddReminder(
+  function handleAddReminder(
     item: HomeItem,
     reminder: { title: string; description: string; frequencyDays: number; icon: string }
   ) {
-    try {
-      const startDate = new Date(Date.now() + reminder.frequencyDays * DAY_MS);
-      await createReminderFromSuggestion({
-        suggestion: {
-          title: reminder.title,
-          description: reminder.description,
-          frequencyDays: reminder.frequencyDays,
-          icon: reminder.icon,
-        },
-        sourceIssueId: item.id,
-        startDate,
-      });
-      await refresh();
-      Alert.alert(
-        `${reminder.icon} Reminder added`,
-        `"${reminder.title}" — ${formatFrequency(reminder.frequencyDays).toLowerCase()}`
-      );
-    } catch (err) {
-      Alert.alert("Could not add reminder", err instanceof Error ? err.message : "Unknown error");
-    }
+    router.push({
+      pathname: "/reminder/new",
+      params: {
+        prefillTitle: reminder.title,
+        prefillDescription: reminder.description,
+        prefillIcon: reminder.icon,
+        prefillFrequencyDays: String(reminder.frequencyDays),
+        sourceItemId: item.id,
+      },
+    });
   }
 
   const grouped = useMemo(() => {

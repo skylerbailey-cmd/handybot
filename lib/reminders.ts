@@ -340,6 +340,7 @@ export async function createCustomReminder(args: {
   category?: ReminderCategory;
   frequencyDays: number;
   startDate: Date;
+  sourceIssueId?: string;
 }): Promise<Reminder> {
   await ensureNotificationsConfigured();
   await requestNotificationPermissions();
@@ -353,6 +354,7 @@ export async function createCustomReminder(args: {
     frequencyDays: args.frequencyDays,
     nextDue: args.startDate.getTime(),
     enabled: true,
+    sourceIssueId: args.sourceIssueId,
     createdAt: Date.now(),
   };
 
