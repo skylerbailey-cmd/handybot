@@ -273,13 +273,14 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   headerBtn: {
     paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
   },
   headerBtnText: {
-    fontSize: 20,
+    fontSize: 26,
     color: colors.textMuted,
   },
   skeleton: {
