@@ -96,6 +96,25 @@ lib/
   types.ts                # Shared types
 ```
 
+## Landing Page Website
+
+The `index.html`, `css/`, and `js/` directories contain a static landing page for HandyBot. It showcases all the app features with interactive mockups.
+
+```
+index.html        # Landing page
+css/styles.css    # Styles (brand color: #ea580c)
+js/main.js        # Interactivity and animations
+images/           # Image assets
+```
+
+To preview the website locally:
+
+```bash
+python3 -m http.server 8000
+# or
+npx serve .
+```
+
 ## Important: API key security
 
 This MVP uses `EXPO_PUBLIC_ANTHROPIC_API_KEY`, which Expo bundles **into the client JavaScript**. That is only acceptable for local development. If you ship this app to the App Store or Play Store with a production key in the bundle, **anyone can extract it**.
@@ -114,3 +133,7 @@ The rest of the app doesn't need to change — `sendChat` is the only place that
 - The "account" is just a locally-generated ID. There is no real authentication.
 - HandyBot is not a licensed tradesperson — it will flag safety-critical work but always double-check before tackling anything electrical, gas, or structural.
 - Web builds work via `npm run web`, but camera capture is limited in the browser — for the full experience, run on a real phone.
+
+## Contact
+
+support@grnd-lab.com

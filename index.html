@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HandyBot | AI-Powered DIY Home Repair</title>
+  <meta name="description" content="Snap a photo, get a step-by-step repair plan from AI. HandyBot helps you fix things yourself with smart diagnostics, home inventory tracking, and maintenance reminders.">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="#" class="logo">
+        <span class="logo-icon">&#129302;</span>
+        Handy<span class="logo-accent">Bot</span>
+      </a>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="#home">Home</a></li>
+        <li><a href="#features">Features</a></li>
+        <li><a href="#how-it-works">How It Works</a></li>
+        <li><a href="#testimonials">Reviews</a></li>
+        <li><a href="#contact" class="btn btn-nav">Get Early Access</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="hero" id="home">
+    <div class="container hero-container">
+      <div class="hero-content">
+        <span class="hero-badge">Powered by Claude AI</span>
+        <h1>Snap a Photo. <span class="text-accent">Fix It Yourself.</span></h1>
+        <p class="hero-subtitle">HandyBot turns any home repair into a step-by-step plan. Just take a photo of what's broken &mdash; our AI diagnoses the problem, lists the tools and materials you need, and walks you through the fix.</p>
+        <div class="hero-actions">
+          <a href="#contact" class="btn btn-primary btn-lg">Get Early Access</a>
+          <a href="#how-it-works" class="btn btn-outline btn-lg">See How It Works</a>
+        </div>
+        <div class="hero-stats">
+          <div class="stat">
+            <span class="stat-number">$$$</span>
+            <span class="stat-label">Save on Labor</span>
+          </div>
+          <div class="stat">
+            <span class="stat-number">AI</span>
+            <span class="stat-label">Photo Diagnosis</span>
+          </div>
+          <div class="stat">
+            <span class="stat-number">DIY</span>
+            <span class="stat-label">Step-by-Step</span>
+          </div>
+        </div>
+      </div>
+      <div class="hero-image">
+        <div class="hero-image-placeholder">
+          <div class="placeholder-icon">&#128248;</div>
+          <p>Snap. Diagnose. Repair.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="features" id="features">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">App Features</span>
+        <h2>Your AI Repair Companion</h2>
+        <p>From photo diagnosis to verified completion, HandyBot guides you through every repair with AI-powered intelligence.</p>
+      </div>
+
+      <!-- Feature 1: AI Photo Diagnosis -->
+      <div class="feature-row">
+        <div class="feature-content">
+          <span class="feature-label">AI Photo Diagnosis</span>
+          <h3>Snap a Photo, Get a Full Repair Plan</h3>
+          <p>Take a photo of any issue &mdash; a leaky faucet, cracked drywall, faulty outlet. Claude AI analyzes the image and generates a complete, personalized repair plan in seconds.</p>
+          <ul class="feature-list">
+            <li><span class="check-icon">&#10003;</span> AI identifies the problem from your photo</li>
+            <li><span class="check-icon">&#10003;</span> Generates difficulty rating (Easy, Medium, Hard, Call a Pro)</li>
+            <li><span class="check-icon">&#10003;</span> Lists every tool and material with estimated prices</li>
+            <li><span class="check-icon">&#10003;</span> Step-by-step checklist with time estimates</li>
+            <li><span class="check-icon">&#10003;</span> Safety warnings for electrical, gas, plumbing, heights</li>
+          </ul>
+        </div>
+        <div class="feature-visual">
+          <div class="feature-mockup">
+            <div class="mockup-header">
+              <span class="mockup-dot"></span>
+              <span class="mockup-dot"></span>
+              <span class="mockup-dot"></span>
+              <span class="mockup-title">Repair Plan</span>
+            </div>
+            <div class="mockup-body">
+              <div class="mockup-plan-header">
+                <strong>Leaky Kitchen Faucet</strong>
+                <div class="mockup-badges">
+                  <span class="difficulty-badge medium">Medium</span>
+                  <span class="time-badge">~45 min</span>
+                </div>
+              </div>
+              <div class="mockup-plan-section">
+                <div class="plan-section-title">Tools Needed</div>
+                <div class="plan-chips">
+                  <span class="plan-chip">&#128295; Adjustable wrench</span>
+                  <span class="plan-chip">&#128295; Phillips screwdriver</span>
+                  <span class="plan-chip">&#128295; Plumber's tape</span>
+                </div>
+              </div>
+              <div class="mockup-plan-section">
+                <div class="plan-section-title">Steps</div>
+                <div class="plan-step completed">
+                  <span class="step-check">&#10003;</span>
+                  <span>Turn off water supply valves</span>
+                </div>
+                <div class="plan-step current">
+                  <span class="step-dot"></span>
+                  <span>Remove faucet handle and cartridge</span>
+                </div>
+                <div class="plan-step">
+                  <span class="step-dot"></span>
+                  <span>Replace worn O-ring and cartridge</span>
+                </div>
+                <div class="plan-step">
+                  <span class="step-dot"></span>
+                  <span>Reassemble and test for leaks</span>
+                </div>
+              </div>
+              <div class="mockup-savings">Estimated savings: <strong>$180</strong> vs. hiring a plumber</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feature 2: Ask HandyBot -->
+      <div class="feature-row reverse">
+        <div class="feature-content">
+          <span class="feature-label">Ask HandyBot</span>
+          <h3>Your 24/7 Home Repair Expert</h3>
+          <p>Got a question about your home? Just ask. HandyBot can answer anything from "Is this crack in my wall serious?" to "Why did my electricity bill double?" Send photos for even better answers.</p>
+          <ul class="feature-list">
+            <li><span class="check-icon">&#10003;</span> Free-form Q&amp;A about any home topic</li>
+            <li><span class="check-icon">&#10003;</span> Attach photos for visual diagnosis</li>
+            <li><span class="check-icon">&#10003;</span> Mid-repair chat for step-specific help</li>
+            <li><span class="check-icon">&#10003;</span> AI can update your plan based on what it sees</li>
+          </ul>
+        </div>
+        <div class="feature-visual">
+          <div class="feature-mockup">
+            <div class="mockup-header">
+              <span class="mockup-dot"></span>
+              <span class="mockup-dot"></span>
+              <span class="mockup-dot"></span>
+              <span class="mockup-title">Ask HandyBot</span>
+            </div>
+            <div class="mockup-body mockup-chat">
+              <div class="chat-bubble user">Is this crack in my ceiling something I should worry about?</div>
+              <div class="chat-bubble bot">Based on the photo, this looks like a hairline settlement crack &mdash; common in homes over 10 years old. It's cosmetic, not structural. You can patch it with joint compound in about 20 minutes. Want me to create a repair plan?</div>
+              <div class="chat-bubble user">Yes please!</div>
+              <div class="chat-bubble bot">&#10004; Repair plan created! I've added it to your dashboard. Difficulty: Easy, estimated time: 20 min.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feature 3: Home Inventory -->
+      <div class="feature-row">
+        <div class="feature-content">
+          <span class="feature-label">Home Inventory</span>
+          <h3>AI Scans Your Home Items Automatically</h3>
+          <p>Snap a photo of any appliance or system in your home. HandyBot identifies it, estimates its age and condition, and generates maintenance reminders &mdash; automatically.</p>
+          <ul class="feature-list">
+            <li><span class="check-icon">&#10003;</span> Photo-based item identification via AI</li>
+            <li><span class="check-icon">&#10003;</span> Condition assessment (Good, Fair, Poor, Replace Soon)</li>
+            <li><span class="check-icon">&#10003;</span> Estimated age and remaining lifespan</li>
+            <li><span class="check-icon">&#10003;</span> Auto-generated maintenance reminders per item</li>
+            <li><span class="check-icon">&#10003;</span> Alerts when items are near end-of-life</li>
+          </ul>
+        </div>
+        <div class="feature-visual">
+          <div class="feature-mockup">
+            <div class="mockup-header">
+              <span class="mockup-dot"></span>
+              <span class="mockup-dot"></span>
+              <span class="mockup-dot"></span>
+              <span class="mockup-title">Home Inventory</span>
+            </div>
+            <div class="mockup-body">
+              <div class="mockup-item">
+                <div class="mockup-item-icon">&#10052;</div>
+                <div class="mockup-item-info">
+                  <strong>HVAC System</strong>
+                  <span>~8 yrs old &middot; Lifespan: 15-20 yrs</span>
+                </div>
+                <div class="mockup-status good">Good</div>
+              </div>
+              <div class="mockup-item">
+                <div class="mockup-item-icon">&#128167;</div>
+                <div class="mockup-item-info">
+                  <strong>Water Heater</strong>
+                  <span>~11 yrs old &middot; Lifespan: 10-12 yrs</span>
+                </div>
+                <div class="mockup-status warning">Replace Soon</div>
+              </div>
+              <div class="mockup-item">
+                <div class="mockup-item-icon">&#127859;</div>
+                <div class="mockup-item-info">
+                  <strong>Dishwasher</strong>
+                  <span>~3 yrs old &middot; Lifespan: 10-15 yrs</span>
+                </div>
+                <div class="mockup-status good">Good</div>
+              </div>
+              <div class="mockup-item alert-item">
+                <div class="mockup-item-icon">&#9888;</div>
+                <div class="mockup-item-info">
+                  <strong>1 item needs attention</strong>
+                  <span>Water heater past expected lifespan</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feature 4: Smart Reminders -->
+      <div class="feature-row reverse">
+        <div class="feature-content">
+          <span class="feature-label">Smart Reminders</span>
+          <h3>Never Forget Maintenance Again</h3>
+          <p>HandyBot includes 20+ pre-built maintenance templates and generates custom reminders from your inventory. Get push notifications before filters need changing, gutters need cleaning, or systems need servicing.</p>
+          <ul class="feature-list">
+            <li><span class="check-icon">&#10003;</span> 20+ pre-built templates (HVAC, plumbing, safety, yard)</li>
+            <li><span class="check-icon">&#10003;</span> AI-generated reminders from your home inventory</li>
+            <li><span class="check-icon">&#10003;</span> Push notifications with snooze and mark-done</li>
+            <li><span class="check-icon">&#10003;</span> Suggested reminders after completing repairs</li>
+          </ul>
+        </div>
+        <div class="feature-visual">
+          <div class="feature-mockup">
+            <div class="mockup-header">
+              <span class="mockup-dot"></span>
+              <span class="mockup-dot"></span>
+              <span class="mockup-dot"></span>
+              <span class="mockup-title">Reminders</span>
+            </div>
+            <div class="mockup-body">
+              <div class="mockup-reminder overdue">
+                <div class="reminder-date">Overdue</div>
+                <strong>Replace HVAC Filter</strong>
+                <span>Every 90 days &middot; Last done: Jan 5</span>
+              </div>
+              <div class="mockup-reminder upcoming">
+                <div class="reminder-date">Apr 15</div>
+                <strong>Clean Gutters</strong>
+                <span>Seasonal &middot; Spring checklist</span>
+              </div>
+              <div class="mockup-reminder upcoming">
+                <div class="reminder-date">Apr 20</div>
+                <strong>Test Smoke Detectors</strong>
+                <span>Every 6 months &middot; Safety</span>
+              </div>
+              <div class="mockup-reminder scheduled">
+                <div class="reminder-date">May 1</div>
+                <strong>Flush Water Heater</strong>
+                <span>Annual &middot; From inventory analysis</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Additional Features Grid -->
+      <div class="section-header" style="margin-top: 80px;">
+        <span class="section-tag">And More</span>
+        <h2>Everything You Need to Maintain Your Home</h2>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="service-icon">&#128248;</div>
+          <h3>Verification</h3>
+          <p>Upload a photo of your finished work. HandyBot's AI verifies the repair quality and confirms it's done right &mdash; or suggests fix-up steps.</p>
+        </div>
+        <div class="feature-card">
+          <div class="service-icon">&#128203;</div>
+          <h3>Repair History</h3>
+          <p>Full timeline of every repair with photos, difficulty, time spent, and money saved. Export your history as a shareable summary.</p>
+        </div>
+        <div class="feature-card">
+          <div class="service-icon">&#128176;</div>
+          <h3>Material Pricing</h3>
+          <p>Every repair plan includes estimated material costs so you can budget before heading to the hardware store.</p>
+        </div>
+        <div class="feature-card">
+          <div class="service-icon">&#127968;</div>
+          <h3>Multi-Home Support</h3>
+          <p>Manage multiple properties from one app. Each home gets its own inventory, repairs, reminders, and chat history.</p>
+        </div>
+        <div class="feature-card">
+          <div class="service-icon">&#9888;</div>
+          <h3>Safety Alerts</h3>
+          <p>Risk assessment for every repair &mdash; electrical, gas, plumbing, heights, chemicals. HandyBot tells you when to call a pro instead.</p>
+        </div>
+        <div class="feature-card">
+          <div class="service-icon">&#128221;</div>
+          <h3>Manual Logging</h3>
+          <p>Already fixed something? Log past repairs manually to build a complete service history for your home.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works Section -->
+  <section class="how-it-works" id="how-it-works">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Simple Process</span>
+        <h2>How It Works</h2>
+        <p>From broken to fixed in four steps.</p>
+      </div>
+      <div class="steps-grid">
+        <div class="step-card">
+          <div class="step-number">1</div>
+          <h3>Snap a Photo</h3>
+          <p>Take a photo of what's broken or needs fixing. Add an optional note to describe the issue.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-number">2</div>
+          <h3>AI Creates Your Plan</h3>
+          <p>Claude AI analyzes the photo and generates a full repair plan &mdash; tools, materials, costs, steps, and safety notes.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-number">3</div>
+          <h3>Follow the Steps</h3>
+          <p>Work through the interactive checklist. Chat with HandyBot if you get stuck or need help on a specific step.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-number">4</div>
+          <h3>Verify &amp; Done</h3>
+          <p>Upload a photo of the finished work. HandyBot verifies the quality and tracks your savings.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Testimonials Section -->
+  <section class="testimonials" id="testimonials">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">What People Say</span>
+        <h2>User Reviews</h2>
+        <p>See how HandyBot is helping homeowners save money and fix things themselves.</p>
+      </div>
+      <div class="testimonials-grid">
+        <div class="testimonial-card">
+          <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+          <p>"I took a photo of my leaky faucet and had a full repair plan in 30 seconds. Saved me $200 in plumber fees. The step-by-step instructions were so clear even I could do it."</p>
+          <div class="testimonial-author">
+            <div class="author-avatar">JD</div>
+            <div>
+              <strong>James D.</strong>
+              <span>First-time DIYer</span>
+            </div>
+          </div>
+        </div>
+        <div class="testimonial-card">
+          <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+          <p>"The home inventory feature found that my water heater was past its lifespan. I would have never checked. The AI-generated reminders keep all my rental properties on schedule."</p>
+          <div class="testimonial-author">
+            <div class="author-avatar">SM</div>
+            <div>
+              <strong>Sarah M.</strong>
+              <span>Property Manager</span>
+            </div>
+          </div>
+        </div>
+        <div class="testimonial-card">
+          <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+          <p>"I love that I can chat with HandyBot mid-repair. I got stuck on step 3 and it walked me through it with a follow-up photo. The verification feature at the end is a nice touch."</p>
+          <div class="testimonial-author">
+            <div class="author-avatar">RK</div>
+            <div>
+              <strong>Robert K.</strong>
+              <span>Homeowner</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Contact / CTA Section -->
+  <section class="contact" id="contact">
+    <div class="container contact-container">
+      <div class="contact-info">
+        <span class="section-tag">Get Started</span>
+        <h2>Ready to Fix It Yourself?</h2>
+        <p>Sign up for early access to HandyBot. Be the first to turn your phone into a home repair expert.</p>
+        <div class="contact-details">
+          <div class="contact-item">
+            <span class="contact-icon">&#127881;</span>
+            <div>
+              <strong>Free to Start</strong>
+              <p>Core features are free. No credit card required.</p>
+            </div>
+          </div>
+          <div class="contact-item">
+            <span class="contact-icon">&#128241;</span>
+            <div>
+              <strong>iOS &amp; Android</strong>
+              <p>Built with React Native &mdash; available on both platforms.</p>
+            </div>
+          </div>
+          <div class="contact-item">
+            <span class="contact-icon">&#9993;</span>
+            <div>
+              <strong>Questions?</strong>
+              <p>support@grnd-lab.com</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="contact-form-wrapper">
+        <form class="contact-form" id="contactForm">
+          <h3>Get Early Access</h3>
+          <div class="form-group">
+            <label for="name">Full Name</label>
+            <input type="text" id="name" name="name" placeholder="Your name" required>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="email">Email</label>
+              <input type="email" id="email" name="email" placeholder="you@email.com" required>
+            </div>
+            <div class="form-group">
+              <label for="phone">Phone (optional)</label>
+              <input type="tel" id="phone" name="phone" placeholder="(555) 000-0000">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="homeType">Home Type</label>
+            <select id="homeType" name="homeType" required>
+              <option value="" disabled selected>Select your home type</option>
+              <option value="single-family">Single Family Home</option>
+              <option value="condo">Condo / Apartment</option>
+              <option value="townhouse">Townhouse</option>
+              <option value="multi-family">Multi-Family / Rental</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="message">What home repairs do you wish you could DIY?</label>
+            <textarea id="message" name="message" rows="3" placeholder="Leaky faucets, drywall repair, electrical outlets..."></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary btn-full">Join the Waitlist</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="#" class="logo">
+            <span class="logo-icon">&#129302;</span>
+            Handy<span class="logo-accent">Bot</span>
+          </a>
+          <p>AI-powered DIY home repair. Snap a photo, get a plan, fix it yourself. Built by grnd-lab.</p>
+        </div>
+        <div class="footer-links">
+          <h4>Product</h4>
+          <ul>
+            <li><a href="#features">Features</a></li>
+            <li><a href="#how-it-works">How It Works</a></li>
+            <li><a href="#testimonials">Reviews</a></li>
+            <li><a href="#contact">Get Early Access</a></li>
+          </ul>
+        </div>
+        <div class="footer-links">
+          <h4>Features</h4>
+          <ul>
+            <li><a href="#features">AI Photo Diagnosis</a></li>
+            <li><a href="#features">Home Inventory</a></li>
+            <li><a href="#features">Smart Reminders</a></li>
+            <li><a href="#features">Repair History</a></li>
+          </ul>
+        </div>
+        <div class="footer-links">
+          <h4>Company</h4>
+          <ul>
+            <li><a href="mailto:support@grnd-lab.com">Contact</a></li>
+            <li><a href="#">Privacy Policy</a></li>
+            <li><a href="#">Terms of Service</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 grnd-lab. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/main.js"></script>
+</body>
+</html>
