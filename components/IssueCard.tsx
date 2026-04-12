@@ -95,16 +95,15 @@ export default function IssueCard({ issue }: { issue: Issue }) {
             <Text style={styles.title} numberOfLines={1}>
               {issue.title || "Untitled repair"}
             </Text>
-            {issue.status === "completed" && (
-              <View style={styles.completedBadge}>
-                <Text style={styles.completedBadgeText}>Completed</Text>
-              </View>
-            )}
-            {issue.status === "verified" && (
+            {issue.status === "verified" ? (
               <View style={styles.verifiedBadge}>
                 <Text style={styles.verifiedBadgeText}>Verified</Text>
               </View>
-            )}
+            ) : issue.status === "completed" ? (
+              <View style={styles.completedBadge}>
+                <Text style={styles.completedBadgeText}>Completed</Text>
+              </View>
+            ) : null}
           </View>
           <Text style={styles.summary} numberOfLines={2}>
             {issue.summary || "Tap to continue the conversation."}
