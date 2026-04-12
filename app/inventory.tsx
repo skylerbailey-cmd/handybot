@@ -25,18 +25,14 @@ const MESSAGE_INTERVAL_MS = 3000;
 import PrimaryButton from "@/components/PrimaryButton";
 import { analyzeHomeItem } from "@/lib/claude";
 import {
-  addHomeItem,
   getItemsNeedingAttention,
   loadInventory,
   removeHomeItem,
 } from "@/lib/homeData";
 import { promptAndPickImage, readImageAsBase64 } from "@/lib/image";
 import { formatFrequency, loadReminders } from "@/lib/reminders";
-import { generateId } from "@/lib/storage";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { HomeItem, Reminder } from "@/lib/types";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 const CONDITION_LABEL: Record<string, string> = {
   good: "Good",
@@ -164,35 +160,28 @@ export default function InventoryScreen() {
         imageMediaType: "image/jpeg",
       });
 
-      const item: HomeItem = {
-        id: generateId(),
-        name: analysis.name,
-        category: analysis.category,
-        icon: analysis.icon,
-        room: "",
-        photoUri: picked.uri,
-        estimatedAgeYears: analysis.estimatedAgeYears,
-        typicalLifespanYears: analysis.typicalLifespanYears,
-        suggestedReminders: analysis.suggestedReminders,
-        condition: analysis.condition,
-        conditionNotes: analysis.conditionNotes,
-        maintenanceTips: analysis.maintenanceTips,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-
-      await addHomeItem(item);
-      await refresh();
-      Alert.alert(
-        `${item.icon}  ${item.name}`,
-        `Condition: ${CONDITION_LABEL[item.condition]}\n${item.conditionNotes}\n\nEstimated age: ~${item.estimatedAgeYears} years (typical lifespan: ${item.typicalLifespanYears} years)`
-      );
+      // Navigate to the edit/review screen so the user can adjust
+      // Claude's analysis before saving.
+      router.push({
+        pathname: "/inventory-edit",
+        params: {
+          analyzedData: JSON.stringify(analysis),
+          photoUri: picked.uri,
+        },
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Could not analyze item";
       Alert.alert("Something went wrong", msg);
     } finally {
       setAdding(false);
     }
+  }
+
+  function handleEditItem(item: HomeItem) {
+    router.push({
+      pathname: "/inventory-edit",
+      params: { itemId: item.id },
+    });
   }
 
   function handleDeleteItem(item: HomeItem) {
@@ -291,6 +280,7 @@ export default function InventoryScreen() {
               return (
                 <Pressable
                   key={item.id}
+                  onPress={() => handleEditItem(item)}
                   onLongPress={() => handleDeleteItem(item)}
                   style={({ pressed }) => [
                     styles.itemCard,
@@ -429,7 +419,7 @@ export default function InventoryScreen() {
         ))}
 
         {items.length > 0 && (
-          <Text style={styles.hint}>Long-press an item to remove it.</Text>
+          <Text style={styles.hint}>Tap to edit · Long-press to remove</Text>
         )}
       </ScrollView>
 
