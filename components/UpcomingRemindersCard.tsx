@@ -1,4 +1,4 @@
-import { Link } from "expo-router";
+import { Link, useRouter } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { formatDueDate } from "@/lib/reminders";
 import { colors, radius, spacing } from "@/lib/theme";
@@ -15,6 +15,8 @@ interface Props {
  * reminder highlighted.
  */
 export default function UpcomingRemindersCard({ reminders }: Props) {
+  const router = useRouter();
+
   if (reminders.length === 0) return null;
 
   return (
@@ -35,40 +37,35 @@ export default function UpcomingRemindersCard({ reminders }: Props) {
         {reminders.map((r, i) => {
           const overdue = r.nextDue <= Date.now();
           return (
-            <Link
+            <Pressable
               key={r.id}
-              href={{
-                pathname: "/reminders",
-                params: { highlight: r.id },
-              }}
-              asChild
+              onPress={() =>
+                router.push({
+                  pathname: "/reminders",
+                  params: { highlight: r.id },
+                })
+              }
+              style={({ pressed }) => [
+                styles.row,
+                i > 0 && styles.rowDivider,
+                pressed && { opacity: 0.85 },
+              ]}
             >
-              <Pressable
-                style={({ pressed }) => [
-                  styles.row,
-                  i > 0 && styles.rowDivider,
-                  pressed && { opacity: 0.85 },
-                ]}
-              >
-                <View style={styles.rowIconWrap}>
-                  <Text style={styles.rowIcon}>{r.icon}</Text>
-                </View>
-                <View style={styles.rowBody}>
-                  <Text style={styles.rowTitle} numberOfLines={1}>
-                    {r.title}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.rowDue,
-                      overdue && styles.rowDueOverdue,
-                    ]}
-                  >
-                    {formatDueDate(r)}
-                  </Text>
-                </View>
-                <Text style={styles.chevron}>›</Text>
-              </Pressable>
-            </Link>
+              <View style={styles.rowIconWrap}>
+                <Text style={styles.rowIcon}>{r.icon}</Text>
+              </View>
+              <View style={styles.rowBody}>
+                <Text style={styles.rowTitle} numberOfLines={1}>
+                  {r.title}
+                </Text>
+                <Text
+                  style={[styles.rowDue, overdue && styles.rowDueOverdue]}
+                >
+                  {formatDueDate(r)}
+                </Text>
+              </View>
+              <Text style={styles.chevron}>›</Text>
+            </Pressable>
           );
         })}
       </View>
