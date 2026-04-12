@@ -13,7 +13,14 @@ export async function loadIssues(): Promise<Issue[]> {
     const raw = await AsyncStorage.getItem(issuesKey());
     if (!raw) return [];
     const parsed = JSON.parse(raw) as Issue[];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    // Normalize legacy "resolved" status → "verified" so old issues
+    // show up in the Completed section instead of disappearing.
+    return parsed.map((issue) => ({
+      ...issue,
+      status:
+        (issue.status as string) === "resolved" ? "verified" : issue.status,
+    }));
   } catch (err) {
     console.error("loadIssues failed", err);
     return [];
