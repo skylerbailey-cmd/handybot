@@ -1091,6 +1091,79 @@ export async function askHandyBot(
 }
 
 // --------------------------------------------------------------------------
+// Verify a manual repair from before + after photos
+// --------------------------------------------------------------------------
+
+export interface ManualVerifyResult {
+  verified: boolean;
+  feedback: string;
+}
+
+export async function verifyManualRepair(args: {
+  title: string;
+  description: string;
+  beforeImageBase64: string;
+  afterImageBase64: string;
+  imageMediaType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+}): Promise<ManualVerifyResult> {
+  const mediaType = args.imageMediaType ?? "image/jpeg";
+
+  const userContent: ApiContentBlock[] = [
+    {
+      type: "text",
+      text: `I'm logging a repair I already did: "${args.title}"${args.description ? ` — ${args.description}` : ""}.\n\nHere is the BEFORE photo (the problem):`,
+    },
+    {
+      type: "image",
+      source: { type: "base64", media_type: mediaType, data: args.beforeImageBase64 },
+    },
+    {
+      type: "text",
+      text: "And here is the AFTER photo (the fix):",
+    },
+    {
+      type: "image",
+      source: { type: "base64", media_type: mediaType, data: args.afterImageBase64 },
+    },
+    {
+      type: "text",
+      text: "Based on comparing the before and after photos, does the repair look like it was done correctly? Please call the verify_repair_from_photo tool.",
+    },
+  ];
+
+  // Verification uses Sonnet for vision accuracy.
+  const data = (await callAnthropic({
+    model: MODEL_SONNET,
+    max_tokens: 1500,
+    system: [
+      {
+        type: "text",
+        text: `You are HandyBot verifying a manually logged home repair by comparing before and after photos. The user is telling you what they fixed. Compare the two images and decide whether the repair looks complete and correctly done. Be encouraging — if the after photo shows genuine improvement over the before photo, verify it. Only reject if the after photo doesn't show meaningful progress or the problem is clearly still present.\n\nYou MUST call the verify_repair_from_photo tool. Do not reply with plain text.`,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    tools: [VERIFY_REPAIR_TOOL],
+    tool_choice: { type: "tool", name: "verify_repair_from_photo" },
+    messages: [{ role: "user", content: userContent }],
+  })) as ClaudeResponse;
+
+  const toolUse = data.content.find(
+    (b): b is { type: "tool_use"; name: string; input: unknown } =>
+      b.type === "tool_use" && b.name === "verify_repair_from_photo"
+  );
+
+  if (!toolUse) {
+    return { verified: false, feedback: "Could not verify — please try again." };
+  }
+
+  const raw = toolUse.input as { verified?: boolean; feedback?: string };
+  return {
+    verified: Boolean(raw.verified),
+    feedback: String(raw.feedback ?? "").trim(),
+  };
+}
+
+// --------------------------------------------------------------------------
 // Home inventory item analysis
 // --------------------------------------------------------------------------
 

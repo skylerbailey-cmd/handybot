@@ -1,4 +1,4 @@
-import { useFocusEffect, useRouter } from "expo-router";
+import { Link, Stack, useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
   Image,
@@ -88,8 +88,20 @@ export default function HistoryScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      {issues.length === 0 ? (
+    <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Link href="/manual-repair" asChild>
+              <Pressable hitSlop={10} style={styles.headerBtn}>
+                <Text style={styles.headerBtnText}>+ Log</Text>
+              </Pressable>
+            </Link>
+          ),
+        }}
+      />
+      <ScrollView contentContainerStyle={styles.container}>
+        {issues.length === 0 ? (
         <View style={styles.empty}>
           <View style={styles.emptyIcon}>
             <Text style={styles.emptyIconText}>📋</Text>
@@ -224,6 +236,7 @@ export default function HistoryScreen() {
         </>
       )}
     </ScrollView>
+    </>
   );
 }
 
@@ -247,6 +260,14 @@ function StatBox({
 }
 
 const styles = StyleSheet.create({
+  headerBtn: {
+    paddingHorizontal: spacing.sm,
+  },
+  headerBtnText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: colors.brand,
+  },
   container: {
     padding: spacing.lg,
     paddingBottom: spacing.xxl * 2,

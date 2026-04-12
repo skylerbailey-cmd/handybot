@@ -102,6 +102,10 @@ export default function RootLayout() {
             name="history"
             options={{ title: "Repair History" }}
           />
+          <Stack.Screen
+            name="manual-repair"
+            options={{ title: "Log a Repair", presentation: "card" }}
+          />
           <Stack.Screen name="homes" options={{ title: "My Homes" }} />
           <Stack.Screen name="reminders" options={{ title: "Reminders" }} />
           <Stack.Screen
