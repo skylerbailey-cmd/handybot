@@ -4,12 +4,14 @@ import {
   Alert,
   Linking,
   Platform,
+  Share,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import PrimaryButton from "@/components/PrimaryButton";
+import { exportAllDataAsJson, writeExportToFile } from "@/lib/export";
 import { scheduleTestNotification } from "@/lib/reminders";
 import { clearUser, ensureUser, wipeAllData } from "@/lib/storage";
 import { colors, radius, spacing } from "@/lib/theme";
@@ -23,6 +25,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [testPending, setTestPending] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     ensureUser().then(setUser);
@@ -88,6 +91,28 @@ export default function SettingsScreen() {
     }
   }
 
+  async function handleExportData() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const json = await exportAllDataAsJson();
+      const { uri, filename } = await writeExportToFile(json);
+      await Share.share({
+        url: uri,
+        title: filename,
+        message:
+          Platform.OS === "android"
+            ? "Your HandyBot data export"
+            : undefined,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Something went wrong";
+      Alert.alert("Export failed", msg);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   function handleSignOut() {
     Alert.alert("Sign out?", "You can sign back in any time.", [
       { text: "Cancel", style: "cancel" },
@@ -103,8 +128,8 @@ export default function SettingsScreen() {
 
   function handleDeleteAccount() {
     Alert.alert(
-      "Delete account?",
-      "This will permanently delete your account and all of your repairs. This can't be undone.",
+      "Delete account & all data?",
+      "This permanently erases every home, repair, chat message, inventory item, reminder, scheduled notification, and photo on this device. Your account is deleted too. This cannot be undone. Consider exporting your data first.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -172,10 +197,26 @@ export default function SettingsScreen() {
         />
       </View>
 
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Your data</Text>
+        <Text style={styles.cardBody}>
+          HandyBot keeps your data on this device. Export a full JSON copy
+          any time, or erase everything permanently.
+        </Text>
+        <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
+          <PrimaryButton
+            title={exporting ? "Preparing export..." : "Export my data"}
+            onPress={handleExportData}
+            loading={exporting}
+            variant="secondary"
+          />
+        </View>
+      </View>
+
       <View style={[styles.card, { gap: spacing.md }]}>
         <PrimaryButton title="Sign out" onPress={handleSignOut} variant="secondary" />
         <PrimaryButton
-          title="Delete account"
+          title="Delete account & all data"
           onPress={handleDeleteAccount}
           variant="danger"
         />

@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
-import { storagePrefix } from "./homes";
+import * as Notifications from "expo-notifications";
+import { loadHomes, storagePrefix } from "./homes";
 import type { Issue, User } from "./types";
 
 function issuesKey() {
@@ -91,8 +92,72 @@ export async function clearUser(): Promise<void> {
   await AsyncStorage.removeItem(USER_KEY);
 }
 
+/**
+ * Permanently erase the account and every piece of data the app has stored
+ * on the device. Used by Settings → "Delete account" and required for GDPR
+ * / CCPA right-to-deletion compliance.
+ *
+ * Covers:
+ *   • All AsyncStorage keys (user, homes, active home, migration/prompt
+ *     flags, and every home-scoped data bucket: issues, reminders,
+ *     inventory, ask_messages).
+ *   • All scheduled local notifications (cancelled before we drop the data).
+ *   • The `handybot/` directory under FileSystem.documentDirectory where
+ *     photos live.
+ */
 export async function wipeAllData(): Promise<void> {
-  await AsyncStorage.multiRemove([issuesKey(), USER_KEY]);
+  // 1. Cancel every scheduled local notification so they don't fire
+  //    after deletion.
+  try {
+    await Notifications.cancelAllScheduledNotificationsAsync();
+  } catch {
+    /* best effort */
+  }
+
+  // 2. Build a comprehensive list of AsyncStorage keys to remove. We iterate
+  //    every home so that per-home buckets are all included.
+  const homes = await loadHomes().catch(() => []);
+  const globalKeys = [
+    USER_KEY,
+    "handybot:homes",
+    "handybot:activeHomeId",
+    "handybot:migratedToMultiHome",
+    "handybot:notifPrompted",
+    // Legacy un-namespaced keys (pre-multi-home migration) — harmless if absent.
+    "handybot:issues",
+    "handybot:reminders",
+    "handybot:inventory",
+    "handybot:ask_messages",
+  ];
+  const perHomeKeys = homes.flatMap((h) => [
+    `handybot:${h.id}:issues`,
+    `handybot:${h.id}:reminders`,
+    `handybot:${h.id}:inventory`,
+    `handybot:${h.id}:ask_messages`,
+  ]);
+
+  // Belt-and-suspenders: also scan AsyncStorage for any other handybot: keys
+  // that may exist (e.g. orphaned homes that were removed from the homes list
+  // but whose per-home data lingered).
+  let allKeys: readonly string[] = [];
+  try {
+    allKeys = await AsyncStorage.getAllKeys();
+  } catch {
+    /* ignore */
+  }
+  const orphanHandybotKeys = allKeys.filter((k) => k.startsWith("handybot:"));
+
+  const toRemove = Array.from(
+    new Set([...globalKeys, ...perHomeKeys, ...orphanHandybotKeys])
+  );
+
+  try {
+    await AsyncStorage.multiRemove(toRemove);
+  } catch {
+    /* best effort */
+  }
+
+  // 3. Delete every image on disk.
   const dir = `${FileSystem.documentDirectory}handybot/`;
   try {
     await FileSystem.deleteAsync(dir, { idempotent: true });
