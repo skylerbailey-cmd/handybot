@@ -460,9 +460,17 @@ export default function IssueWorkspaceScreen() {
       await persist({
         ...issue,
         plan: updatedPlan,
+        // Auto-resolve when verification passes — moves the project
+        // from Ongoing to Completed on the home screen.
+        status: verifyResult.verified ? "resolved" : issue.status,
         updatedAt: Date.now(),
       });
-      if (!verifyResult.verified && verifyResult.fixSteps.length > 0) {
+      if (verifyResult.verified) {
+        Alert.alert(
+          "Repair verified!",
+          "Great work — this project has been moved to your Completed repairs."
+        );
+      } else if (verifyResult.fixSteps.length > 0) {
         Alert.alert(
           "A few things to fix",
           `HandyBot added ${verifyResult.fixSteps.length} fix-up ${verifyResult.fixSteps.length === 1 ? "step" : "steps"} to your plan. Work through them and verify again when you're done.`
