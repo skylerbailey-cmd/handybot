@@ -67,9 +67,9 @@ export default function InventoryScreen() {
   const [items, setItems] = useState<HomeItem[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [adding, setAdding] = useState(false);
-  const [expandedReminders, setExpandedReminders] = useState<Set<string>>(
-    new Set()
-  );
+  const [expandedReminderSections, setExpandedReminderSections] = useState<
+    Set<string>
+  >(new Set());
   const [msgIndex, setMsgIndex] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
@@ -336,53 +336,49 @@ export default function InventoryScreen() {
                     {item.suggestedReminders &&
                       item.suggestedReminders.length > 0 && (
                         <View style={styles.remindersSection}>
-                          <Text style={styles.remindersSectionTitle}>
-                            🔔 Smart reminders ({item.suggestedReminders.length})
-                          </Text>
-                          {item.suggestedReminders.map((sr, ri) => {
-                            const key = `${item.id}:${ri}`;
-                            // First reminder is expanded by default
-                            const isExpanded =
-                              ri === 0 || expandedReminders.has(key);
-                            const alreadyAdded = addedReminderTitles.has(
-                              `${item.id}:${sr.title}`
-                            );
-                            return (
-                              <View key={ri}>
-                                <Pressable
-                                  onPress={() => {
-                                    setExpandedReminders((prev) => {
-                                      const next = new Set(prev);
-                                      if (next.has(key)) next.delete(key);
-                                      else next.add(key);
-                                      return next;
-                                    });
-                                  }}
-                                  style={styles.reminderHeader}
-                                >
-                                  <Text style={styles.reminderIcon}>
-                                    {sr.icon}
-                                  </Text>
-                                  <Text
-                                    style={styles.reminderTitle}
-                                    numberOfLines={1}
-                                  >
-                                    {sr.title}
-                                  </Text>
-                                  {alreadyAdded && (
-                                    <Text style={styles.addedChip}>
-                                      ✓ Added
+                          <Pressable
+                            onPress={() => {
+                              setExpandedReminderSections((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(item.id)) next.delete(item.id);
+                                else next.add(item.id);
+                                return next;
+                              });
+                            }}
+                            style={styles.remindersSectionHeader}
+                          >
+                            <Text style={styles.remindersSectionTitle}>
+                              🔔 Smart reminders ({item.suggestedReminders.length})
+                            </Text>
+                            <Text style={styles.arrow}>
+                              {expandedReminderSections.has(item.id) ? "▾" : "▸"}
+                            </Text>
+                          </Pressable>
+                          {expandedReminderSections.has(item.id) &&
+                            item.suggestedReminders.map((sr, ri) => {
+                              const alreadyAdded = addedReminderTitles.has(
+                                `${item.id}:${sr.title}`
+                              );
+                              return (
+                                <View key={ri} style={styles.reminderRow}>
+                                  <View style={styles.reminderHeader}>
+                                    <Text style={styles.reminderIcon}>
+                                      {sr.icon}
                                     </Text>
-                                  )}
-                                  <Text style={styles.arrow}>
-                                    {isExpanded ? "▾" : "▸"}
-                                  </Text>
-                                </Pressable>
-                                {isExpanded && (
-                                  <View style={styles.reminderExpanded}>
                                     <Text
-                                      style={styles.reminderDesc}
+                                      style={styles.reminderTitle}
+                                      numberOfLines={1}
                                     >
+                                      {sr.title}
+                                    </Text>
+                                    {alreadyAdded && (
+                                      <Text style={styles.addedChip}>
+                                        ✓ Added
+                                      </Text>
+                                    )}
+                                  </View>
+                                  <View style={styles.reminderExpanded}>
+                                    <Text style={styles.reminderDesc}>
                                       {sr.description}
                                     </Text>
                                     <View style={styles.reminderFooter}>
@@ -405,10 +401,9 @@ export default function InventoryScreen() {
                                       )}
                                     </View>
                                   </View>
-                                )}
-                              </View>
-                            );
-                          })}
+                                </View>
+                              );
+                            })}
                         </View>
                       )}
                   </View>
@@ -611,13 +606,25 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     gap: 2,
   },
+  remindersSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: spacing.xs,
+    marginBottom: spacing.xs,
+  },
   remindersSectionTitle: {
+    flex: 1,
     fontSize: 11,
     fontWeight: "800",
     color: colors.text,
     textTransform: "uppercase",
     letterSpacing: 0.5,
-    marginBottom: spacing.xs,
+  },
+  reminderRow: {
+    borderTopWidth: 1,
+    borderColor: colors.border,
+    paddingTop: spacing.xs,
   },
   reminderHeader: {
     flexDirection: "row",
