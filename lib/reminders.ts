@@ -29,7 +29,11 @@ export async function ensureNotificationsConfigured(): Promise<void> {
   if (!handlerConfigured) {
     Notifications.setNotificationHandler({
       handleNotification: async () => ({
+        // shouldShowAlert was split into banner + list in newer SDKs; we
+        // keep shouldShowAlert for back-compat and set both new fields too.
         shouldShowAlert: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
         shouldPlaySound: true,
         shouldSetBadge: false,
       }),
@@ -128,11 +132,15 @@ async function scheduleLocalNotification(
           "Time to take care of this home-maintenance task.",
         data: { reminderId: reminder.id },
       },
+      // Trigger shape changed between SDK 51 and 52+: newer SDKs require a
+      // `type: "timeInterval"` tag. Cast to any so we stay compatible across
+      // SDKs without gating on the precise type definitions.
       trigger: {
+        type: "timeInterval",
         seconds: secondsFromNow,
         repeats: false,
         channelId: "maintenance",
-      },
+      } as unknown as Notifications.NotificationTriggerInput,
     });
     return id;
   } catch (err) {
@@ -447,10 +455,11 @@ export async function scheduleTestNotification(
         data: {},
       },
       trigger: {
+        type: "timeInterval",
         seconds: Math.max(2, delaySeconds),
         repeats: false,
         channelId: "maintenance",
-      },
+      } as unknown as Notifications.NotificationTriggerInput,
     });
     return true;
   } catch (err) {

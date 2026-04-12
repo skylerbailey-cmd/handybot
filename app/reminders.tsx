@@ -14,7 +14,9 @@ import {
   Text,
   View,
 } from "react-native";
-import { Swipeable } from "react-native-gesture-handler";
+import ReanimatedSwipeable, {
+  type SwipeableMethods,
+} from "react-native-gesture-handler/ReanimatedSwipeable";
 import ReminderRow from "@/components/ReminderRow";
 import SegmentedTabs from "@/components/SegmentedTabs";
 import TemplateRow from "@/components/TemplateRow";
@@ -324,7 +326,7 @@ function SwipeableReminder({
   onSnooze: () => void;
   onEdit: () => void;
 }) {
-  const swipeRef = useRef<Swipeable>(null);
+  const swipeRef = useRef<SwipeableMethods>(null);
 
   function handleDonePress() {
     swipeRef.current?.close();
@@ -342,7 +344,7 @@ function SwipeableReminder({
   }
 
   return (
-    <Swipeable
+    <ReanimatedSwipeable
       ref={swipeRef}
       friction={2}
       leftThreshold={60}
@@ -368,7 +370,7 @@ function SwipeableReminder({
       <Pressable onPress={onEdit} style={({ pressed }) => pressed && { opacity: 0.9 }}>
         <ReminderRow reminder={reminder} onToggle={onToggle} />
       </Pressable>
-    </Swipeable>
+    </ReanimatedSwipeable>
   );
 }
 
