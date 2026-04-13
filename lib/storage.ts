@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
+import { syncIssues, syncUser } from "./cloud/sync";
 import { storagePrefix } from "./homes";
+import { isCloudBackupEnabled } from "./subscription";
 import type { Issue, User } from "./types";
 
 function issuesKey() {
@@ -29,6 +31,32 @@ export async function loadIssues(): Promise<Issue[]> {
 
 export async function saveIssues(issues: Issue[]): Promise<void> {
   await AsyncStorage.setItem(issuesKey(), JSON.stringify(issues));
+
+  // Cloud backup (paid tier only). Pushes rows to Supabase in the
+  // background; if any file:// images were uploaded, write the returned
+  // https URLs back to the local cache so we don't re-upload next time.
+  if (isCloudBackupEnabled()) {
+    void syncIssues(issues).then(async (normalized) => {
+      if (!normalized) return;
+      const changed = normalized.some((n, idx) => {
+        const local = issues[idx];
+        if (!local) return true;
+        if (local.coverImageUri !== n.coverImageUri) return true;
+        if (local.messages.length !== n.messages.length) return true;
+        for (let i = 0; i < local.messages.length; i++) {
+          if (local.messages[i].imageUri !== n.messages[i].imageUri) return true;
+        }
+        return false;
+      });
+      if (changed) {
+        try {
+          await AsyncStorage.setItem(issuesKey(), JSON.stringify(normalized));
+        } catch {
+          /* ignore */
+        }
+      }
+    });
+  }
 }
 
 export async function getIssue(id: string): Promise<Issue | undefined> {
@@ -85,6 +113,9 @@ export async function loadUser(): Promise<User | null> {
 
 export async function saveUser(user: User): Promise<void> {
   await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
+  if (isCloudBackupEnabled()) {
+    void syncUser();
+  }
 }
 
 export async function clearUser(): Promise<void> {

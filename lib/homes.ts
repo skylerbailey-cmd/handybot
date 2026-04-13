@@ -1,5 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { syncHomes } from "./cloud/sync";
 import { generateId } from "./storage";
+import { isCloudBackupEnabled } from "./subscription";
 
 // --------------------------------------------------------------------------
 // Types
@@ -51,6 +53,9 @@ export async function loadHomes(): Promise<Home[]> {
 
 async function saveHomes(homes: Home[]): Promise<void> {
   await AsyncStorage.setItem(HOMES_KEY, JSON.stringify(homes));
+  if (isCloudBackupEnabled()) {
+    void syncHomes(homes);
+  }
 }
 
 export async function addHome(home: Home): Promise<void> {

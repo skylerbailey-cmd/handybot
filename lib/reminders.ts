@@ -1,8 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import { syncReminders } from "./cloud/sync";
 import { storagePrefix } from "./homes";
 import { generateId } from "./storage";
+import { isCloudBackupEnabled } from "./subscription";
 import type {
   MaintenanceTemplate,
   Reminder,
@@ -95,6 +97,9 @@ export async function loadReminders(): Promise<Reminder[]> {
 
 async function saveReminders(reminders: Reminder[]): Promise<void> {
   await AsyncStorage.setItem(remindersKey(), JSON.stringify(reminders));
+  if (isCloudBackupEnabled()) {
+    void syncReminders(reminders);
+  }
 }
 
 export async function getReminder(id: string): Promise<Reminder | undefined> {

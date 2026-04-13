@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { syncInventory } from "./cloud/sync";
 import { storagePrefix } from "./homes";
 import { generateId } from "./storage";
+import { isCloudBackupEnabled } from "./subscription";
 import type { AskMessage, HomeItem } from "./types";
 
 // --------------------------------------------------------------------------
@@ -49,6 +51,25 @@ export async function loadInventory(): Promise<HomeItem[]> {
 
 export async function saveInventory(items: HomeItem[]): Promise<void> {
   await AsyncStorage.setItem(inventoryKey(), JSON.stringify(items));
+
+  // Cloud backup (paid tier only). Inventory photos are uploaded and the
+  // returned remote URLs are written back into the local cache so we
+  // don't re-upload the same file on the next save.
+  if (isCloudBackupEnabled()) {
+    void syncInventory(items).then(async (normalized) => {
+      if (!normalized) return;
+      const changed = normalized.some(
+        (n, idx) => n.photoUri !== items[idx]?.photoUri
+      );
+      if (changed) {
+        try {
+          await AsyncStorage.setItem(inventoryKey(), JSON.stringify(normalized));
+        } catch {
+          /* ignore */
+        }
+      }
+    });
+  }
 }
 
 export async function addHomeItem(item: HomeItem): Promise<void> {
