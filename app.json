@@ -24,7 +24,11 @@
       "adaptiveIcon": {
         "backgroundColor": "#ea580c"
       },
-      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"]
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "bundler": "metro"
@@ -44,7 +48,8 @@
           "color": "#ea580c",
           "defaultChannel": "maintenance"
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true
