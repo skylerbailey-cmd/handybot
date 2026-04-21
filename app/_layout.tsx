@@ -4,11 +4,13 @@ import * as Notifications from "expo-notifications";
 import { useEffect, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { getSession } from "@/lib/auth";
 import { recallSyncOnLaunch } from "@/lib/cloud/recallSync";
 import { restoreMissingImages } from "@/lib/cloud/restoreImages";
 import { ensureMultiHomeSetup } from "@/lib/homes";
 import { registerPushToken } from "@/lib/pushToken";
 import { ensureNotificationsConfigured } from "@/lib/reminders";
+import { seedDemoData } from "@/lib/seedData";
 import { hydrateSubscription } from "@/lib/subscription";
 
 export default function RootLayout() {
@@ -19,8 +21,13 @@ export default function RootLayout() {
   const handledColdStart = useRef(false);
 
   useEffect(() => {
-    ensureMultiHomeSetup().catch(() => {});
+    ensureMultiHomeSetup()
+      .then(() => seedDemoData())
+      .catch(() => {});
     ensureNotificationsConfigured().catch(() => {});
+    // Hydrate the Supabase auth session so it's ready before any screen
+    // tries to check login state (e.g. Settings → Cloud Backup).
+    getSession().catch(() => {});
     hydrateSubscription()
       .then(async () => {
         await restoreMissingImages();
@@ -70,6 +77,10 @@ export default function RootLayout() {
         <StatusBar style="dark" />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen
+            name="login"
+            options={{ presentation: "modal", animation: "slide_from_bottom" }}
+          />
         </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>

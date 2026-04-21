@@ -3,14 +3,18 @@ import { useEffect, useState } from "react";
 import {
   Alert,
   Linking,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import PrimaryButton from "@/components/PrimaryButton";
+import { getSession, signOut as authSignOut } from "@/lib/auth";
+import { forceSeedDemoData } from "@/lib/seedData";
 import { deleteUserCloudData } from "@/lib/cloud/deleteAccount";
 import { runInitialBackfill, type MigrateProgress } from "@/lib/cloud/migrate";
 import {
@@ -51,6 +55,10 @@ export default function SettingsScreen() {
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [homeName, setHomeName] = useState("this home");
+  const [seedBusy, setSeedBusy] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deleteModalBackupOn, setDeleteModalBackupOn] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   useEffect(() => {
     ensureUser().then(setUser);
@@ -92,8 +100,15 @@ export default function SettingsScreen() {
       return;
     }
 
-    // Turning ON — enable the flag first so future writes mirror up, then
-    // do the one-time backfill of everything already in local storage.
+    // Turning ON — require a Supabase session first. If the user isn't
+    // signed in, send them to the login screen. When they come back
+    // (Settings re-mounts), they can tap "Turn on" again.
+    const session = await getSession();
+    if (!session) {
+      router.push("/login");
+      return;
+    }
+
     setBackupBusy(true);
     setBackupStatus("Starting backup…");
     try {
@@ -285,6 +300,8 @@ export default function SettingsScreen() {
       {
         text: "Sign out",
         onPress: async () => {
+          // Sign out of Supabase if a session exists, then clear local user.
+          await authSignOut();
           await clearUser();
           router.replace("/(tabs)/(home)");
         },
@@ -321,42 +338,29 @@ export default function SettingsScreen() {
     ]);
   }
 
-  // Step 2 — final "are you absolutely sure" gate. Separate function so
-  // the call stack stays readable.
+  // Step 2 — show a modal requiring the user to type DELETE to proceed.
   function confirmDeleteAccount(backupOn: boolean) {
-    Alert.alert(
-      "Are you absolutely sure?",
-      backupOn
-        ? "Last chance. Tapping \"Delete everything\" will immediately wipe your local data AND permanently delete your cloud backup."
-        : "Last chance. Tapping \"Delete everything\" will immediately wipe all your local data.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete everything",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              // Delete cloud data FIRST — if this fails we want to
-              // surface the error and let the user retry. If we wiped
-              // local first and cloud deletion failed, they'd be left
-              // with orphan data they couldn't clean up from the app.
-              if (backupOn) {
-                const currentUser = await ensureUser();
-                await deleteUserCloudData(currentUser.id);
-              }
-              await wipeAllData();
-              router.replace("/(tabs)/(home)");
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : "Unknown error";
-              Alert.alert(
-                "Couldn't delete cloud data",
-                `${msg}\n\nYour local data is unchanged. Check your connection and try again.`
-              );
-            }
-          },
-        },
-      ]
-    );
+    setDeleteModalBackupOn(backupOn);
+    setDeleteConfirmText("");
+    setDeleteModalVisible(true);
+  }
+
+  async function executeDeleteAccount() {
+    setDeleteModalVisible(false);
+    try {
+      if (deleteModalBackupOn) {
+        const currentUser = await ensureUser();
+        await deleteUserCloudData(currentUser.id);
+      }
+      await wipeAllData();
+      router.replace("/(tabs)/(home)");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      Alert.alert(
+        "Couldn't delete cloud data",
+        `${msg}\n\nYour local data is unchanged. Check your connection and try again.`
+      );
+    }
   }
 
   return (
@@ -516,9 +520,99 @@ export default function SettingsScreen() {
         />
       </View>
 
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Demo data</Text>
+        <Text style={styles.cardBody}>
+          Replace your current inventory, repairs, reminders, and recalls with
+          sample data so you can explore every feature.
+        </Text>
+        <PrimaryButton
+          title={seedBusy ? "Loading demo data…" : "Load demo data"}
+          loading={seedBusy}
+          onPress={() => {
+            Alert.alert(
+              "Load demo data?",
+              "This will replace your current inventory, repairs, reminders, and recall alerts with sample data.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Load demo data",
+                  onPress: async () => {
+                    setSeedBusy(true);
+                    try {
+                      const result = await forceSeedDemoData();
+                      Alert.alert(
+                        "Demo data loaded",
+                        `Added ${result.itemsAdded} items, ${result.issuesAdded} repairs, and ${result.remindersAdded} reminders with 3 recall alerts.`
+                      );
+                    } catch (err) {
+                      const msg = err instanceof Error ? err.message : "Failed";
+                      Alert.alert("Failed to load demo data", msg);
+                    } finally {
+                      setSeedBusy(false);
+                    }
+                  },
+                },
+              ]
+            );
+          }}
+          variant="secondary"
+          style={{ marginTop: spacing.md }}
+        />
+      </View>
+
       <Text style={styles.footer}>
         HandyBot v{APP_VERSION} — powered by Claude
       </Text>
+
+      <Modal
+        visible={deleteModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDeleteModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Are you absolutely sure?</Text>
+            <Text style={styles.modalBody}>
+              {deleteModalBackupOn
+                ? "This will immediately wipe your local data AND permanently delete your cloud backup. This cannot be undone."
+                : "This will immediately wipe all your local data. This cannot be undone."}
+            </Text>
+            <Text style={styles.modalBody}>
+              Type <Text style={{ fontWeight: "700" }}>DELETE</Text> to confirm.
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              value={deleteConfirmText}
+              onChangeText={setDeleteConfirmText}
+              placeholder="Type DELETE here"
+              placeholderTextColor={colors.textSubtle}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+            <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.md }}>
+              <Pressable
+                onPress={() => setDeleteModalVisible(false)}
+                style={[styles.modalBtn, styles.modalBtnCancel]}
+              >
+                <Text style={styles.modalBtnCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={executeDeleteAccount}
+                disabled={deleteConfirmText !== "DELETE"}
+                style={[
+                  styles.modalBtn,
+                  styles.modalBtnDelete,
+                  deleteConfirmText !== "DELETE" && styles.modalBtnDisabled,
+                ]}
+              >
+                <Text style={styles.modalBtnDeleteText}>Delete everything</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -586,5 +680,63 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textSubtle,
     marginTop: spacing.lg,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    padding: spacing.lg,
+  },
+  modalCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  modalBody: {
+    fontSize: 14,
+    color: colors.textMuted,
+    marginTop: spacing.sm,
+  },
+  modalInput: {
+    marginTop: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.text,
+    letterSpacing: 2,
+    textAlign: "center",
+  },
+  modalBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: radius.md,
+    alignItems: "center",
+  },
+  modalBtnCancel: {
+    backgroundColor: colors.border,
+  },
+  modalBtnCancelText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  modalBtnDelete: {
+    backgroundColor: "#dc2626",
+  },
+  modalBtnDisabled: {
+    opacity: 0.4,
+  },
+  modalBtnDeleteText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#fff",
   },
 });
