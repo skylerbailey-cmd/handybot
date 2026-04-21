@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How to Delete Your Account | HandyBot Help</title>
+  <meta name="description" content="Step-by-step instructions for deleting your HandyBot account and all associated data, including cloud backups.">
+  <link rel="stylesheet" href="../css/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="../index.html" class="logo">
+        <span class="logo-icon">&#129302;</span>
+        Handy<span class="logo-accent">Bot</span>
+      </a>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="../index.html#features">Features</a></li>
+        <li><a href="../index.html#how-it-works">How It Works</a></li>
+        <li><a href="../index.html#testimonials">Reviews</a></li>
+        <li><a href="../index.html#contact" class="btn btn-nav">Get Early Access</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Help Article -->
+  <main class="legal-page">
+    <div class="container legal-container">
+      <header class="legal-header">
+        <span class="section-tag">Help</span>
+        <h1>How to Delete Your Account</h1>
+        <p class="legal-meta">Last updated: April 13, 2026</p>
+      </header>
+
+      <div class="legal-content">
+        <div class="legal-callout" style="border-left:4px solid var(--primary); background: var(--primary-light);">
+          <strong>This action is permanent.</strong> Deleting your account erases every repair, reminder, inventory item, photo, and your account itself &mdash; both on your device and, if Cloud Backup is on, in our cloud database. We cannot recover this data after deletion. If you're not sure, consider the alternatives in section 4 below first.
+        </div>
+
+        <h2>1. Before You Begin</h2>
+        <p>Take a minute to decide what you actually want to do. The right option depends on your situation:</p>
+        <ul>
+          <li><strong>I want a fresh start, but might come back.</strong> &rarr; Sign out instead of deleting (see section 4.1).</li>
+          <li><strong>I'm cancelling my paid subscription, but want to keep my data on this device.</strong> &rarr; Just turn off Cloud Backup (see section 4.2).</li>
+          <li><strong>I want to keep a copy of my data before deleting.</strong> &rarr; Export your data first (see section 4.3).</li>
+          <li><strong>I want everything HandyBot has on me, gone.</strong> &rarr; Continue with the steps below.</li>
+        </ul>
+
+        <h2>2. What Will Be Deleted</h2>
+        <p>The deletion flow is aware of whether you have Cloud Backup turned on and shows you exactly what will be wiped before you confirm.</p>
+
+        <h3>2.1 If Cloud Backup is OFF (free tier)</h3>
+        <p>The following is permanently deleted from your device:</p>
+        <ul>
+          <li>All repairs and repair history</li>
+          <li>All reminders</li>
+          <li>Your home inventory</li>
+          <li>All photos saved in the app</li>
+          <li>Your homes and account profile</li>
+        </ul>
+        <p>Nothing has ever been uploaded to our servers in this case, so there is nothing to delete on the cloud side.</p>
+
+        <h3>2.2 If Cloud Backup is ON (paid tier)</h3>
+        <p>In addition to everything in 2.1, the following is permanently deleted from our cloud:</p>
+        <ul>
+          <li>Your account row in our database</li>
+          <li>Every home, repair, reminder, and home inventory item linked to your account (cascaded automatically via database foreign keys)</li>
+          <li>Every photo you uploaded to our cloud storage bucket</li>
+        </ul>
+        <p>The cloud delete runs <strong>before</strong> the local delete. If something goes wrong on the cloud side (for example, you lose connection mid-delete), we surface the error and leave your local data alone so you can retry without losing anything.</p>
+
+        <h2>3. Step-by-Step: Delete Your Account from the App</h2>
+
+        <ol>
+          <li>
+            <strong>Open the HandyBot app</strong> on your phone or in your browser.
+          </li>
+          <li>
+            <strong>Go to Settings.</strong> Tap the gear icon in the top corner of the home screen.
+          </li>
+          <li>
+            <strong>(Optional) Check your Cloud Backup status.</strong> Scroll to the <em>Cloud backup</em> card at the top. If it says "On (paid)," your cloud data will also be deleted in step 6. If it says "Off (local only)," only on-device data is affected.
+          </li>
+          <li>
+            <strong>Scroll to the bottom of Settings.</strong> Below the gray "Sign out" button you'll see an explanation of what "Delete account" does, followed by a red <strong>Delete account</strong> button.
+          </li>
+          <li>
+            <strong>Tap "Delete account."</strong> A pop-up appears titled "Delete account and all data?" listing exactly what will be deleted. Read it carefully. Tap <strong>Continue</strong> to proceed, or <strong>Cancel</strong> to back out.
+          </li>
+          <li>
+            <strong>Tap "Delete everything" on the second confirmation.</strong> A second pop-up titled "Are you absolutely sure?" appears. This is your last chance. Tap <strong>Delete everything</strong> to permanently erase your account, or <strong>Cancel</strong> to back out.
+          </li>
+          <li>
+            <strong>Wait a moment.</strong> If Cloud Backup was on, the app contacts our servers to wipe your cloud rows and uploaded photos before clearing local data. Most accounts complete in under five seconds. If you see an error, your local data is untouched &mdash; check your network connection and try again.
+          </li>
+          <li>
+            <strong>You're done.</strong> The app returns to the home screen with no data. Your account is gone.
+          </li>
+        </ol>
+
+        <div class="legal-callout">
+          <strong>Heads up about active subscriptions.</strong> Deleting your account in the app does <em>not</em> automatically cancel an Apple App Store, Google Play, or Stripe subscription. To stop being billed, also cancel the subscription in your Apple ID, Google Play account, or via the link in your billing receipt. We don't process payments directly and can't cancel subscriptions on your behalf.
+        </div>
+
+        <h2>4. Alternatives to Deleting</h2>
+
+        <h3>4.1 Sign out instead</h3>
+        <p>If you just want to step away, use <em>Settings &rarr; Sign out</em>. (When sign-in is enabled in a future update, this preserves your cloud data so you can sign back in later from any device.) Today, sign-out clears the local user profile but leaves repairs and inventory in place; if you also want a clean device but want to keep the cloud copy, this is the right choice.</p>
+
+        <h3>4.2 Just turn off Cloud Backup</h3>
+        <p>If your concern is that we have a copy of your data in the cloud, but you want to keep using the app on this device, go to <em>Settings &rarr; Cloud backup &rarr; Turn off cloud backup</em>. New changes will stop syncing immediately. To also delete the cloud copy, follow the deletion steps above; turning off backup alone does not erase what is already there.</p>
+
+        <h3>4.3 Export your data first</h3>
+        <p>Want a copy of your repairs and inventory before you wipe everything? Use <em>Settings &rarr; Export My Data</em> (or email <a href="mailto:support@grnd-lab.com">support@grnd-lab.com</a> requesting an export). HandyBot generates a JSON file containing all of your homes, repairs, reminders, inventory, and chat history. Save it somewhere safe, then come back and delete.</p>
+
+        <h3>4.4 Uninstall the app</h3>
+        <p>Deleting HandyBot from your device removes all locally-stored data on that device, but does <em>not</em> delete your cloud backup if it was on. To remove the cloud copy too, run the in-app deletion flow before uninstalling, or email us.</p>
+
+        <h2>5. Delete by Email Request</h2>
+        <p>Can't access the app? Phone broken or lost? You can request deletion by email instead.</p>
+        <ol>
+          <li>Email <a href="mailto:support@grnd-lab.com?subject=Deletion%20Request">support@grnd-lab.com</a> with the subject line <strong>Deletion Request</strong>.</li>
+          <li>From the email address associated with your HandyBot account, briefly identify yourself. If you don't know which email is on file, include the device-generated user ID shown in <em>Settings &rarr; Account</em> if you can.</li>
+          <li>We may follow up to verify your identity (we don't want to delete the wrong person's data).</li>
+          <li>Once verified, we delete your cloud rows, photo bucket folder, and any support correspondence within 30 days, and reply to confirm.</li>
+        </ol>
+
+        <h2>6. Frequently Asked Questions</h2>
+
+        <h3>Can I undo a deletion?</h3>
+        <p>No. Deletion is immediate and permanent. There is no trash bin or recovery window. This is by design &mdash; our database delete cascades to every related row, and our storage delete removes the underlying photo files.</p>
+
+        <h3>Will my repair history be on a new device?</h3>
+        <p>No. After deletion there is nothing in the cloud to sync. A fresh install on any device will start with a blank account.</p>
+
+        <h3>What about my subscription?</h3>
+        <p>Deleting the account does not refund or cancel an in-progress subscription &mdash; that's controlled by Apple, Google, or Stripe. Cancel separately to stop renewals. See the heads-up box above.</p>
+
+        <h3>Will support emails I sent be deleted too?</h3>
+        <p>If you ask us to in your deletion request, yes &mdash; we'll also delete past support correspondence. Otherwise we keep support tickets for up to three years for warranty/abuse-investigation purposes (see Privacy Policy section 9).</p>
+
+        <h3>Are backups of my data kept somewhere I can't see?</h3>
+        <p>Our cloud database provider (Supabase) takes routine encrypted backups for disaster recovery. After you delete your account, deleted data may persist in those backups for up to 30 days before rolling out of the backup retention window. The backups are encrypted, never accessed except for disaster recovery, and any restore would re-apply the deletion.</p>
+
+        <h3>Where can I find more about how my data is handled?</h3>
+        <p>Read our <a href="../privacy.html">Privacy Policy</a> for the full picture, and our <a href="../terms.html">Terms of Service</a> for the legal agreement that governs the App.</p>
+
+        <h2>7. Still Need Help?</h2>
+        <p>If any of these steps don't match what you see in the app, or you run into an error, email us at <a href="mailto:support@grnd-lab.com">support@grnd-lab.com</a> with a screenshot or short description and we'll get you sorted within one business day.</p>
+      </div>
+
+      <div class="legal-footer-nav">
+        <a href="../index.html" class="btn btn-outline">&larr; Back to Home</a>
+        <a href="../privacy.html" class="btn btn-primary">Read the Privacy Policy &rarr;</a>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-bottom">
+        <p>&copy; 2026 grnd-lab. All rights reserved. &middot; <a href="../privacy.html">Privacy Policy</a> &middot; <a href="../terms.html">Terms of Service</a> &middot; <a href="#" onclick="event.preventDefault(); window.openCookiePreferences && window.openCookiePreferences();">Cookie settings</a></p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="../js/main.js"></script>
+  <script src="../js/cookies.js"></script>
+</body>
+</html>

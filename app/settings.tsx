@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import PrimaryButton from "@/components/PrimaryButton";
+import { deleteUserCloudData } from "@/lib/cloud/deleteAccount";
 import { runInitialBackfill, type MigrateProgress } from "@/lib/cloud/migrate";
 import {
   restoreFromCloud,
@@ -291,17 +292,66 @@ export default function SettingsScreen() {
   }
 
   function handleDeleteAccount() {
+    // Step 1 — explain EXACTLY what will happen, including cloud deletion
+    // if the user is on the paid tier. Many destructive actions on mobile
+    // get one-tapped by accident; a two-step confirm for an unrecoverable
+    // action is well worth the friction.
+    const backupOn = isCloudBackupEnabled();
+    const firstMessage = backupOn
+      ? "You're about to permanently delete:\n\n" +
+        "• All repairs and repair history on this device\n" +
+        "• All reminders and home inventory\n" +
+        "• Your account and backup in the cloud\n" +
+        "• All photos uploaded to the cloud\n\n" +
+        "This cannot be undone. You will not be able to recover anything from any device."
+      : "You're about to permanently delete:\n\n" +
+        "• All repairs and repair history on this device\n" +
+        "• All reminders and home inventory\n" +
+        "• All photos on this device\n\n" +
+        "This cannot be undone.";
+
+    Alert.alert("Delete account and all data?", firstMessage, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Continue",
+        style: "destructive",
+        onPress: () => confirmDeleteAccount(backupOn),
+      },
+    ]);
+  }
+
+  // Step 2 — final "are you absolutely sure" gate. Separate function so
+  // the call stack stays readable.
+  function confirmDeleteAccount(backupOn: boolean) {
     Alert.alert(
-      "Delete account?",
-      "This will permanently delete your account and all of your repairs. This can't be undone.",
+      "Are you absolutely sure?",
+      backupOn
+        ? "Last chance. Tapping \"Delete everything\" will immediately wipe your local data AND permanently delete your cloud backup."
+        : "Last chance. Tapping \"Delete everything\" will immediately wipe all your local data.",
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Delete everything",
           style: "destructive",
           onPress: async () => {
-            await wipeAllData();
-            router.replace("/");
+            try {
+              // Delete cloud data FIRST — if this fails we want to
+              // surface the error and let the user retry. If we wiped
+              // local first and cloud deletion failed, they'd be left
+              // with orphan data they couldn't clean up from the app.
+              if (backupOn) {
+                const currentUser = await ensureUser();
+                await deleteUserCloudData(currentUser.id);
+              }
+              await wipeAllData();
+              router.replace("/");
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : "Unknown error";
+              Alert.alert(
+                "Couldn't delete cloud data",
+                `${msg}\n\nYour local data is unchanged. Check your connection and try again.`
+              );
+            }
           },
         },
       ]
@@ -437,6 +487,11 @@ export default function SettingsScreen() {
 
       <View style={[styles.card, { gap: spacing.md }]}>
         <PrimaryButton title="Sign out" onPress={handleSignOut} variant="secondary" />
+        <Text style={styles.cardBody}>
+          {cloudBackup
+            ? "Deletes your account, every repair, reminder, and inventory item on this device, and your entire cloud backup (including photos). This cannot be undone and cannot be recovered from another device."
+            : "Deletes your account and every repair, reminder, and inventory item on this device. This cannot be undone."}
+        </Text>
         <PrimaryButton
           title="Delete account"
           onPress={handleDeleteAccount}
