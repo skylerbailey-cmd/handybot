@@ -4,6 +4,7 @@ import {
   Alert,
   Linking,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -452,6 +453,22 @@ export default function SettingsScreen() {
           variant="danger"
         />
       </View>
+
+      <Pressable
+        onPress={() => router.push("/insurance-export")}
+        style={styles.card}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+          <Text style={{ fontSize: 20 }}>🛡</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>Insurance inventory export</Text>
+            <Text style={[styles.cardBody, { marginTop: 2 }]}>
+              Generate a claim-ready PDF of your home inventory
+            </Text>
+          </View>
+          <Text style={{ fontSize: 18, color: colors.textSubtle }}>›</Text>
+        </View>
+      </Pressable>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Account</Text>

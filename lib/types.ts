@@ -245,6 +245,8 @@ export interface User {
 
 export type ItemCondition = "good" | "fair" | "poor" | "replace_soon";
 
+export type WarrantyStatus = "active" | "expiring" | "expired" | "none";
+
 export interface HomeItemReminder {
   title: string;
   description: string;
@@ -275,6 +277,22 @@ export interface HomeItem {
   maintenanceTips: string[];
   /** Claude-generated recurring maintenance reminders specific to this item. */
   suggestedReminders?: HomeItemReminder[];
+  /** Unix ms timestamp of when the item was purchased. */
+  purchaseDate?: number;
+  /** Unix ms timestamp of when the warranty expires. */
+  warrantyExpiration?: number;
+  /** Warranty provider, e.g. "Samsung", "Home Depot Protection Plan". */
+  warrantyProvider?: string;
+  /** Free-text notes about what the warranty covers. */
+  warrantyCoverageNotes?: string;
+  /** Local file URI of a photo of the warranty card or certificate. */
+  warrantyPhotoUri?: string;
+  /** Local file URI of a photo of the purchase receipt. */
+  receiptPhotoUri?: string;
+  /** Whether the user has registered this product with the manufacturer. */
+  warrantyRegistered?: boolean;
+  /** Estimated replacement cost in USD (what it would cost to buy new today). */
+  replacementCostUsd?: number;
   createdAt: number;
   updatedAt: number;
 }

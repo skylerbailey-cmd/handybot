@@ -27,14 +27,17 @@ import PrimaryButton from "@/components/PrimaryButton";
 import { analyzeHomeItem } from "@/lib/claude";
 import {
   getItemsNeedingAttention,
+  getWarrantyStatus,
   loadInventory,
   removeHomeItem,
+  updateHomeItem,
 } from "@/lib/homeData";
 import { promptAndPickImage, readImageAsBase64 } from "@/lib/image";
 import { checkForRecalls, type RecallAlert } from "@/lib/recalls";
 import { formatFrequency, loadReminders } from "@/lib/reminders";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { HomeItem, Reminder } from "@/lib/types";
+import { getRegistrationUrl, openRegistrationPage } from "@/lib/warrantyRegistry";
 
 const CONDITION_LABEL: Record<string, string> = {
   good: "Good",
@@ -51,6 +54,12 @@ const CONDITION_COLOR: Record<
   fair: { bg: "#fef3c7", fg: "#b45309" },
   poor: { bg: "#fee2e2", fg: "#b91c1c" },
   replace_soon: { bg: "#fee2e2", fg: "#b91c1c" },
+};
+
+const WARRANTY_BADGE: Record<string, { bg: string; fg: string; label: string }> = {
+  active: { bg: "#d1fae5", fg: "#047857", label: "Warranty Active" },
+  expiring: { bg: "#fef3c7", fg: "#b45309", label: "Warranty Expiring" },
+  expired: { bg: "#fee2e2", fg: "#b91c1c", label: "Warranty Expired" },
 };
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -292,9 +301,11 @@ export default function InventoryScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.alertItemName}>{item.name}</Text>
                     <Text style={styles.alertItemNote}>
-                      {remaining <= 0
-                        ? `Past typical ${item.typicalLifespanYears}-year lifespan`
-                        : `${remaining} ${remaining === 1 ? "year" : "years"} of expected life remaining`}
+                      {getWarrantyStatus(item) === "expiring"
+                        ? `Warranty expires ${new Date(item.warrantyExpiration!).toLocaleDateString()}`
+                        : remaining <= 0
+                          ? `Past typical ${item.typicalLifespanYears}-year lifespan`
+                          : `${remaining} ${remaining === 1 ? "year" : "years"} of expected life remaining`}
                       {item.condition === "poor" || item.condition === "replace_soon"
                         ? ` · Condition: ${CONDITION_LABEL[item.condition]}`
                         : ""}
@@ -415,6 +426,71 @@ export default function InventoryScreen() {
                           ⚠ RECALL
                         </Text>
                       </Pressable>
+                    )}
+                    {(() => {
+                      const ws = getWarrantyStatus(item);
+                      if (ws === "none") return null;
+                      const wc = WARRANTY_BADGE[ws];
+                      return (
+                        <View
+                          style={[
+                            styles.conditionBadge,
+                            { backgroundColor: wc.bg, alignSelf: "flex-start" },
+                          ]}
+                        >
+                          <Text style={[styles.conditionText, { color: wc.fg }]}>
+                            {wc.label}
+                          </Text>
+                        </View>
+                      );
+                    })()}
+                    {/* Register Warranty button */}
+                    {item.make && !item.warrantyRegistered && (
+                      <Pressable
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          openRegistrationPage(item).then(() => {
+                            // Mark as registered after opening the page
+                            Alert.alert(
+                              "Mark as registered?",
+                              "Did you complete the warranty registration?",
+                              [
+                                { text: "Not yet", style: "cancel" },
+                                {
+                                  text: "Yes, registered",
+                                  onPress: async () => {
+                                    await updateHomeItem(item.id, {
+                                      warrantyRegistered: true,
+                                    });
+                                    refresh();
+                                  },
+                                },
+                              ]
+                            );
+                          });
+                        }}
+                        style={styles.registerBtn}
+                      >
+                        <Text style={styles.registerBtnText}>
+                          📋 Register Warranty
+                        </Text>
+                        {getRegistrationUrl(item.make) ? (
+                          <Text style={styles.registerBtnHint}>
+                            Opens {item.make} registration
+                          </Text>
+                        ) : (
+                          <Text style={styles.registerBtnHint}>
+                            Search for registration page
+                          </Text>
+                        )}
+                      </Pressable>
+                    )}
+                    {item.warrantyRegistered && (
+                      <View style={styles.registeredBadge}>
+                        <Text style={styles.registeredBadgeText}>
+                          ✓ Warranty Registered
+                        </Text>
+                      </View>
                     )}
                     <Text style={styles.itemNotes} numberOfLines={2}>
                       {item.conditionNotes}
@@ -540,6 +616,22 @@ export default function InventoryScreen() {
             })}
           </View>
         ))}
+
+        {items.length > 0 && (
+          <Pressable
+            onPress={() => router.push("/insurance-export")}
+            style={styles.insuranceBtn}
+          >
+            <Text style={styles.insuranceBtnIcon}>🛡</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.insuranceBtnText}>Export for insurance</Text>
+              <Text style={styles.insuranceBtnHint}>
+                Generate a claim-ready PDF
+              </Text>
+            </View>
+            <Text style={styles.insuranceBtnArrow}>›</Text>
+          </Pressable>
+        )}
 
         {items.length > 0 && (
           <Text style={styles.hint}>Tap to edit · Long-press to remove</Text>
@@ -970,5 +1062,64 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "800",
     color: "#dc2626",
+  },
+  registerBtn: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.brandLighter,
+    borderWidth: 1,
+    borderColor: colors.brandLight,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    gap: 2,
+  },
+  registerBtnText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: colors.brand,
+  },
+  registerBtnHint: {
+    fontSize: 10,
+    color: colors.textMuted,
+  },
+  insuranceBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    marginTop: spacing.lg,
+  },
+  insuranceBtnIcon: {
+    fontSize: 24,
+  },
+  insuranceBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  insuranceBtnHint: {
+    fontSize: 11,
+    color: colors.textMuted,
+  },
+  insuranceBtnArrow: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.textSubtle,
+  },
+  registeredBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#d1fae5",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+  },
+  registeredBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#047857",
   },
 });

@@ -1064,22 +1064,38 @@ Guidelines:
 - If they include a photo, describe exactly what you see before answering.
 - If something looks dangerous (mold, structural damage, gas smell, exposed wiring), say so clearly and recommend a professional.
 - Keep answers concise — 2-4 short paragraphs max. Use bullet points for lists.
-- If you're not sure, say so honestly rather than guessing.`;
+- If you're not sure, say so honestly rather than guessing.
+- You have access to the user's home data below. Use it to give personalized answers. If they ask about their inventory, warranties, repairs, or reminders, reference the actual data. If a question doesn't relate to their data, just answer normally.`;
 
 export async function askHandyBot(
-  messages: ChatRequestMessage[]
+  messages: ChatRequestMessage[],
+  homeContext?: string
 ): Promise<string> {
+  const systemBlocks: Array<{
+    type: "text";
+    text: string;
+    cache_control?: { type: "ephemeral" };
+  }> = [
+    {
+      type: "text",
+      text: ASK_SYSTEM_PROMPT,
+      cache_control: { type: "ephemeral" },
+    },
+  ];
+
+  if (homeContext) {
+    systemBlocks.push({
+      type: "text",
+      text: homeContext,
+      cache_control: { type: "ephemeral" },
+    });
+  }
+
   // General Q&A uses Haiku — fast, cheap, and the task is conversational.
   const data = (await callAnthropic({
     model: MODEL_HAIKU,
     max_tokens: 1000,
-    system: [
-      {
-        type: "text",
-        text: ASK_SYSTEM_PROMPT,
-        cache_control: { type: "ephemeral" },
-      },
-    ],
+    system: systemBlocks,
     messages: toApiMessages(messages),
   })) as ClaudeResponse;
 
@@ -1237,6 +1253,16 @@ const ANALYZE_ITEM_TOOL = {
         description:
           "Year the item was manufactured or installed if visible on a date sticker, rating plate, or identifiable from the model. Use 0 if unknown.",
       },
+      purchase_date_hint: {
+        type: "string",
+        description:
+          "If a purchase date, install date sticker, or receipt date is visible, return it as YYYY-MM-DD. Empty string if not visible.",
+      },
+      warranty_years_hint: {
+        type: "integer",
+        description:
+          "If a warranty duration is visible on a sticker or label (e.g. '5 Year Limited Warranty'), return the number of years. Use 0 if not visible.",
+      },
       icon: {
         type: "string",
         description: "Single emoji that best represents this item.",
@@ -1283,7 +1309,7 @@ const ANALYZE_ITEM_TOOL = {
   },
 } as const;
 
-const ANALYZE_ITEM_SYSTEM = `You are HandyBot analyzing a photo of a home item for a homeowner's inventory. Identify what it is, estimate its age and condition from what you can see, and provide practical maintenance advice. Be specific about what you observe — mention brand names, model indicators, visible wear, rust, dates, stickers, etc. when you can see them.
+const ANALYZE_ITEM_SYSTEM = `You are HandyBot analyzing a photo of a home item for a homeowner's inventory. Identify what it is, estimate its age and condition from what you can see, and provide practical maintenance advice. Be specific about what you observe — mention brand names, model indicators, visible wear, rust, dates, stickers, etc. when you can see them. If you can see a purchase date, warranty sticker, or warranty duration label, include those in your response.
 
 You MUST call the analyze_home_item tool. Do not reply with plain text.`;
 
@@ -1299,6 +1325,8 @@ export interface AnalyzedItem {
   condition: "good" | "fair" | "poor" | "replace_soon";
   conditionNotes: string;
   maintenanceTips: string[];
+  purchaseDateHint?: string;
+  warrantyYearsHint?: number;
   icon: string;
   suggestedReminders: Array<{
     title: string;
@@ -1378,7 +1406,104 @@ export async function analyzeHomeItem(args: {
     maintenanceTips: Array.isArray(raw.maintenance_tips)
       ? (raw.maintenance_tips as string[]).map((t) => String(t).trim()).filter(Boolean)
       : [],
+    purchaseDateHint: raw.purchase_date_hint ? String(raw.purchase_date_hint).trim() : undefined,
+    warrantyYearsHint: Number(raw.warranty_years_hint) || undefined,
     icon: String(raw.icon ?? "🏠").trim().slice(0, 4) || "🏠",
     suggestedReminders,
+  };
+}
+
+// --------------------------------------------------------------------------
+// Replacement cost estimation (for insurance export)
+// --------------------------------------------------------------------------
+
+const ESTIMATE_COST_TOOL = {
+  name: "estimate_replacement_cost",
+  description:
+    "Estimate the current US retail replacement cost for a home item.",
+  input_schema: {
+    type: "object",
+    properties: {
+      replacement_cost_usd: {
+        type: "integer",
+        description:
+          "Median US retail price today for this product new, or a comparable current model if the exact model is discontinued. Return 0 if the item is unidentifiable.",
+      },
+      rationale: {
+        type: "string",
+        description:
+          "1 sentence explaining the estimate (e.g. comparable model, typical price range).",
+      },
+    },
+    required: ["replacement_cost_usd", "rationale"],
+  },
+} as const;
+
+const ESTIMATE_COST_SYSTEM = `You are a home-inventory valuation assistant. The user will describe a home item (appliance, fixture, system) and you must estimate its current replacement cost in USD retail.
+
+Guidelines:
+- Prices are US retail, realistic and conservative.
+- If the exact model is discontinued, estimate based on a comparable current model from the same brand or category.
+- If the item is unidentifiable or you cannot reasonably estimate a price, return 0 and explain in the rationale.
+- Do NOT invent numbers — base estimates on typical retail prices for the category.
+
+You MUST call the estimate_replacement_cost tool. Do not reply with plain text.`;
+
+export interface ReplacementCostEstimate {
+  replacementCostUsd: number;
+  rationale: string;
+}
+
+export async function estimateReplacementCost(args: {
+  name: string;
+  make?: string;
+  model?: string;
+  category?: string;
+  yearInstalled?: number;
+}): Promise<ReplacementCostEstimate> {
+  const parts: string[] = [`Item: ${args.name}`];
+  if (args.make) parts.push(`Brand: ${args.make}`);
+  if (args.model) parts.push(`Model: ${args.model}`);
+  if (args.category) parts.push(`Category: ${args.category}`);
+  if (args.yearInstalled) parts.push(`Year installed: ${args.yearInstalled}`);
+
+  const data = (await callAnthropic({
+    model: MODEL_HAIKU,
+    max_tokens: 300,
+    system: [
+      {
+        type: "text",
+        text: ESTIMATE_COST_SYSTEM,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    tools: [ESTIMATE_COST_TOOL],
+    tool_choice: { type: "tool", name: "estimate_replacement_cost" },
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: `Please estimate the current replacement cost for this home item:\n\n${parts.join("\n")}`,
+          },
+        ],
+      },
+    ],
+  })) as ClaudeResponse;
+
+  const toolUse = data.content.find(
+    (b): b is { type: "tool_use"; name: string; input: unknown } =>
+      b.type === "tool_use" && b.name === "estimate_replacement_cost"
+  );
+
+  if (!toolUse) {
+    return { replacementCostUsd: 0, rationale: "Could not estimate." };
+  }
+
+  const raw = toolUse.input as Record<string, unknown>;
+  return {
+    replacementCostUsd: Math.max(0, Math.round(Number(raw.replacement_cost_usd) || 0)),
+    rationale: String(raw.rationale ?? "").trim(),
   };
 }

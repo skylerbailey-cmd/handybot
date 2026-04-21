@@ -121,7 +121,7 @@ export default function RootLayout() {
           />
           <Stack.Screen
             name="history"
-            options={{ title: "Repair History" }}
+            options={{ title: "Recalls" }}
           />
           <Stack.Screen
             name="manual-repair"
@@ -138,6 +138,10 @@ export default function RootLayout() {
             options={{ title: "Edit reminder", presentation: "card" }}
           />
           <Stack.Screen name="settings" options={{ title: "Settings" }} />
+          <Stack.Screen
+            name="insurance-export"
+            options={{ title: "Insurance Export", presentation: "card" }}
+          />
         </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>

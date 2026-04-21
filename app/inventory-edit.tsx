@@ -13,15 +13,18 @@ import {
   View,
 } from "react-native";
 import PrimaryButton from "@/components/PrimaryButton";
+import { estimateReplacementCost } from "@/lib/claude";
 import {
   addHomeItem,
   loadInventory,
   removeHomeItem,
   updateHomeItem,
 } from "@/lib/homeData";
+import { promptAndPickImage } from "@/lib/image";
 import { generateId } from "@/lib/storage";
-import { colors, radius, spacing } from "@/lib/theme";
+import { colors, formatMoney, radius, spacing } from "@/lib/theme";
 import type { HomeItem, ItemCondition } from "@/lib/types";
+import { getRegistrationUrl, openRegistrationPage } from "@/lib/warrantyRegistry";
 
 const CONDITIONS: Array<{ value: ItemCondition; label: string }> = [
   { value: "good", label: "Good" },
@@ -60,6 +63,20 @@ export default function InventoryEditScreen() {
   const [saving, setSaving] = useState(false);
   const [photoFailed, setPhotoFailed] = useState(false);
 
+  // Warranty fields
+  const [purchaseDate, setPurchaseDate] = useState("");
+  const [warrantyExpiration, setWarrantyExpiration] = useState("");
+  const [warrantyProvider, setWarrantyProvider] = useState("");
+  const [warrantyCoverageNotes, setWarrantyCoverageNotes] = useState("");
+  const [warrantyPhotoUri, setWarrantyPhotoUri] = useState<string | undefined>();
+  const [warrantyPhotoFailed, setWarrantyPhotoFailed] = useState(false);
+  const [receiptPhotoUri, setReceiptPhotoUri] = useState<string | undefined>();
+  const [receiptPhotoFailed, setReceiptPhotoFailed] = useState(false);
+  const [warrantyRegistered, setWarrantyRegistered] = useState(false);
+  const [replacementCostUsd, setReplacementCostUsd] = useState<number | undefined>();
+  const [costRationale, setCostRationale] = useState<string | undefined>();
+  const [estimatingCost, setEstimatingCost] = useState(false);
+
   // Fields we keep from analysis but don't expose for editing
   const [category, setCategory] = useState("other");
   const [icon, setIcon] = useState("🏠");
@@ -93,6 +110,22 @@ export default function InventoryEditScreen() {
           setRoom(found.room);
           setMaintenanceTips(found.maintenanceTips);
           setSuggestedReminders(found.suggestedReminders);
+          setPurchaseDate(
+            found.purchaseDate
+              ? new Date(found.purchaseDate).toISOString().split("T")[0]
+              : ""
+          );
+          setWarrantyExpiration(
+            found.warrantyExpiration
+              ? new Date(found.warrantyExpiration).toISOString().split("T")[0]
+              : ""
+          );
+          setWarrantyProvider(found.warrantyProvider ?? "");
+          setWarrantyCoverageNotes(found.warrantyCoverageNotes ?? "");
+          setWarrantyPhotoUri(found.warrantyPhotoUri);
+          setReceiptPhotoUri(found.receiptPhotoUri);
+          setWarrantyRegistered(found.warrantyRegistered ?? false);
+          setReplacementCostUsd(found.replacementCostUsd);
         }
       });
     } else if (params.analyzedData) {
@@ -112,6 +145,12 @@ export default function InventoryEditScreen() {
         setIcon(data.icon ?? "🏠");
         setMaintenanceTips(data.maintenanceTips ?? []);
         setSuggestedReminders(data.suggestedReminders);
+        if (data.purchaseDateHint) setPurchaseDate(data.purchaseDateHint);
+        if (data.warrantyYearsHint && data.purchaseDateHint) {
+          const pd = new Date(data.purchaseDateHint);
+          pd.setFullYear(pd.getFullYear() + data.warrantyYearsHint);
+          setWarrantyExpiration(pd.toISOString().split("T")[0]);
+        }
         if (params.photoUri) {
           setPhotoUri(params.photoUri);
         }
@@ -134,6 +173,12 @@ export default function InventoryEditScreen() {
       const lifespanNum = Math.max(1, Number(typicalLifespanYears) || 1);
 
       const yearNum = Number(yearInstalled) || 0;
+      const purchaseDateMs = purchaseDate
+        ? new Date(purchaseDate).getTime()
+        : undefined;
+      const warrantyExpirationMs = warrantyExpiration
+        ? new Date(warrantyExpiration).getTime()
+        : undefined;
 
       if (isNew) {
         const item: HomeItem = {
@@ -153,10 +198,39 @@ export default function InventoryEditScreen() {
           conditionNotes: conditionNotes.trim(),
           maintenanceTips,
           suggestedReminders,
+          purchaseDate: purchaseDateMs || undefined,
+          warrantyExpiration: warrantyExpirationMs || undefined,
+          warrantyProvider: warrantyProvider.trim() || undefined,
+          warrantyCoverageNotes: warrantyCoverageNotes.trim() || undefined,
+          warrantyPhotoUri,
+          receiptPhotoUri,
+          warrantyRegistered,
+          replacementCostUsd,
           createdAt: Date.now(),
           updatedAt: Date.now(),
         };
         await addHomeItem(item);
+
+        // Background: estimate replacement cost if not already set
+        if (!replacementCostUsd && name.trim()) {
+          void estimateReplacementCost({
+            name: name.trim(),
+            make: make.trim() || undefined,
+            model: model.trim() || undefined,
+            category: category || undefined,
+            yearInstalled: yearNum || undefined,
+          })
+            .then((est) => {
+              if (est.replacementCostUsd > 0) {
+                void updateHomeItem(item.id, {
+                  replacementCostUsd: est.replacementCostUsd,
+                });
+              }
+            })
+            .catch(() => {
+              /* non-blocking */
+            });
+        }
       } else if (params.itemId) {
         await updateHomeItem(params.itemId, {
           name: name.trim(),
@@ -168,7 +242,36 @@ export default function InventoryEditScreen() {
           estimatedAgeYears: ageNum,
           typicalLifespanYears: lifespanNum,
           condition,
+          purchaseDate: purchaseDateMs || undefined,
+          warrantyExpiration: warrantyExpirationMs || undefined,
+          warrantyProvider: warrantyProvider.trim() || undefined,
+          warrantyCoverageNotes: warrantyCoverageNotes.trim() || undefined,
+          warrantyPhotoUri,
+          receiptPhotoUri,
+          warrantyRegistered,
+          replacementCostUsd,
         });
+
+        // Background: estimate replacement cost if not already set
+        if (!replacementCostUsd && name.trim()) {
+          void estimateReplacementCost({
+            name: name.trim(),
+            make: make.trim() || undefined,
+            model: model.trim() || undefined,
+            category: category || undefined,
+            yearInstalled: yearNum || undefined,
+          })
+            .then((est) => {
+              if (est.replacementCostUsd > 0) {
+                void updateHomeItem(params.itemId!, {
+                  replacementCostUsd: est.replacementCostUsd,
+                });
+              }
+            })
+            .catch(() => {
+              /* non-blocking */
+            });
+        }
       }
       router.back();
     } catch (err) {
@@ -197,6 +300,14 @@ export default function InventoryEditScreen() {
     conditionNotes,
     maintenanceTips,
     suggestedReminders,
+    purchaseDate,
+    warrantyExpiration,
+    warrantyProvider,
+    warrantyCoverageNotes,
+    warrantyPhotoUri,
+    receiptPhotoUri,
+    warrantyRegistered,
+    replacementCostUsd,
     params.itemId,
     router,
   ]);
@@ -381,6 +492,269 @@ export default function InventoryEditScreen() {
             </View>
           )}
 
+          {/* Warranty */}
+          <View style={styles.card}>
+            <Text style={styles.label}>Warranty</Text>
+            <View style={styles.detailRow}>
+              <View style={styles.detailField}>
+                <Text style={styles.detailLabel}>Purchase Date</Text>
+                <TextInput
+                  value={purchaseDate}
+                  onChangeText={setPurchaseDate}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={colors.textSubtle}
+                  style={styles.input}
+                />
+              </View>
+              <View style={styles.detailField}>
+                <Text style={styles.detailLabel}>Warranty Expires</Text>
+                <TextInput
+                  value={warrantyExpiration}
+                  onChangeText={setWarrantyExpiration}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={colors.textSubtle}
+                  style={styles.input}
+                />
+              </View>
+            </View>
+            <View style={{ gap: spacing.xs }}>
+              <Text style={styles.detailLabel}>Provider</Text>
+              <TextInput
+                value={warrantyProvider}
+                onChangeText={setWarrantyProvider}
+                placeholder="e.g. Samsung, Home Depot"
+                placeholderTextColor={colors.textSubtle}
+                style={styles.input}
+              />
+            </View>
+            <View style={{ gap: spacing.xs }}>
+              <Text style={styles.detailLabel}>Coverage Notes</Text>
+              <TextInput
+                value={warrantyCoverageNotes}
+                onChangeText={setWarrantyCoverageNotes}
+                placeholder="What does the warranty cover?"
+                placeholderTextColor={colors.textSubtle}
+                multiline
+                style={styles.textarea}
+              />
+            </View>
+            {warrantyPhotoUri && !warrantyPhotoFailed ? (
+              <Image
+                source={{ uri: warrantyPhotoUri }}
+                style={styles.warrantyPhoto}
+                onError={() => setWarrantyPhotoFailed(true)}
+              />
+            ) : warrantyPhotoUri && warrantyPhotoFailed ? (
+              <View style={styles.warrantyPhotoPlaceholder}>
+                <Text style={{ fontSize: 12, color: colors.textSubtle }}>
+                  Warranty photo unavailable
+                </Text>
+              </View>
+            ) : null}
+            <Pressable
+              onPress={async () => {
+                const result = await promptAndPickImage(
+                  "Photograph receipt or warranty card"
+                );
+                if (result) setWarrantyPhotoUri(result.uri);
+              }}
+              style={styles.warrantyPhotoBtn}
+            >
+              <Text style={styles.warrantyPhotoBtnText}>
+                {warrantyPhotoUri ? "Change Warranty Photo" : "+ Add Warranty Photo"}
+              </Text>
+            </Pressable>
+
+            {/* Receipt photo */}
+            {receiptPhotoUri && !receiptPhotoFailed ? (
+              <Image
+                source={{ uri: receiptPhotoUri }}
+                style={styles.warrantyPhoto}
+                onError={() => setReceiptPhotoFailed(true)}
+              />
+            ) : receiptPhotoUri && receiptPhotoFailed ? (
+              <View style={styles.warrantyPhotoPlaceholder}>
+                <Text style={{ fontSize: 12, color: colors.textSubtle }}>
+                  Receipt photo unavailable
+                </Text>
+              </View>
+            ) : null}
+            <Pressable
+              onPress={async () => {
+                const result = await promptAndPickImage(
+                  "Photograph your receipt"
+                );
+                if (result) setReceiptPhotoUri(result.uri);
+              }}
+              style={styles.warrantyPhotoBtn}
+            >
+              <Text style={styles.warrantyPhotoBtnText}>
+                {receiptPhotoUri ? "Change Receipt Photo" : "+ Add Receipt Photo"}
+              </Text>
+            </Pressable>
+
+            {/* Warranty Registration */}
+            <View style={styles.registrationSection}>
+              <View style={styles.registrationHeader}>
+                <Text style={styles.detailLabel}>Product Registration</Text>
+                <Pressable
+                  onPress={() => setWarrantyRegistered(!warrantyRegistered)}
+                  style={[
+                    styles.registrationToggle,
+                    warrantyRegistered && styles.registrationToggleActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.registrationToggleText,
+                      warrantyRegistered && styles.registrationToggleTextActive,
+                    ]}
+                  >
+                    {warrantyRegistered ? "✓ Registered" : "Not registered"}
+                  </Text>
+                </Pressable>
+              </View>
+              {!warrantyRegistered && make.trim().length > 0 && (
+                <Pressable
+                  onPress={() => {
+                    // Build a temporary item object for the registration helper
+                    const tempItem: HomeItem = {
+                      id: params.itemId ?? "temp",
+                      name: name.trim(),
+                      category,
+                      icon,
+                      room,
+                      make: make.trim() || undefined,
+                      model: model.trim() || undefined,
+                      serialNumber: serialNumber.trim() || undefined,
+                      yearInstalled: Number(yearInstalled) || undefined,
+                      estimatedAgeYears: Number(estimatedAgeYears) || 0,
+                      typicalLifespanYears: Number(typicalLifespanYears) || 1,
+                      condition,
+                      conditionNotes: conditionNotes.trim(),
+                      maintenanceTips: [],
+                      purchaseDate: purchaseDate
+                        ? new Date(purchaseDate).getTime()
+                        : undefined,
+                      createdAt: Date.now(),
+                      updatedAt: Date.now(),
+                    };
+                    openRegistrationPage(tempItem).then(() => {
+                      Alert.alert(
+                        "Mark as registered?",
+                        "Did you complete the warranty registration?",
+                        [
+                          { text: "Not yet", style: "cancel" },
+                          {
+                            text: "Yes, registered",
+                            onPress: () => setWarrantyRegistered(true),
+                          },
+                        ]
+                      );
+                    });
+                  }}
+                  style={styles.registerActionBtn}
+                >
+                  <Text style={styles.registerActionBtnText}>
+                    📋 Register with {make.trim()}
+                  </Text>
+                  {getRegistrationUrl(make.trim()) ? (
+                    <Text style={styles.registerActionBtnHint}>
+                      Opens manufacturer registration page & copies details
+                    </Text>
+                  ) : (
+                    <Text style={styles.registerActionBtnHint}>
+                      Searches for registration page & copies details
+                    </Text>
+                  )}
+                </Pressable>
+              )}
+            </View>
+          </View>
+
+          {/* Replacement Cost (for insurance export) */}
+          <View style={styles.card}>
+            <Text style={styles.label}>Replacement Cost</Text>
+            {replacementCostUsd ? (
+              <View style={styles.costDisplay}>
+                <Text style={styles.costAmount}>
+                  {formatMoney(replacementCostUsd)}
+                </Text>
+                {costRationale ? (
+                  <Text style={styles.costRationale}>{costRationale}</Text>
+                ) : null}
+                <Pressable
+                  onPress={async () => {
+                    if (estimatingCost) return;
+                    setEstimatingCost(true);
+                    try {
+                      const est = await estimateReplacementCost({
+                        name: name.trim(),
+                        make: make.trim() || undefined,
+                        model: model.trim() || undefined,
+                        category: category || undefined,
+                        yearInstalled: Number(yearInstalled) || undefined,
+                      });
+                      if (est.replacementCostUsd > 0) {
+                        setReplacementCostUsd(est.replacementCostUsd);
+                        setCostRationale(est.rationale);
+                      }
+                    } catch {
+                      Alert.alert("Estimate failed", "Could not get an estimate. Try again later.");
+                    } finally {
+                      setEstimatingCost(false);
+                    }
+                  }}
+                  style={styles.refreshCostBtn}
+                >
+                  <Text style={styles.refreshCostBtnText}>
+                    {estimatingCost ? "Estimating..." : "↻ Re-estimate"}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={styles.costDisplay}>
+                <Text style={styles.costHint}>
+                  AI-estimated replacement cost for insurance documentation.
+                </Text>
+                <Pressable
+                  onPress={async () => {
+                    if (estimatingCost || !name.trim()) return;
+                    setEstimatingCost(true);
+                    try {
+                      const est = await estimateReplacementCost({
+                        name: name.trim(),
+                        make: make.trim() || undefined,
+                        model: model.trim() || undefined,
+                        category: category || undefined,
+                        yearInstalled: Number(yearInstalled) || undefined,
+                      });
+                      if (est.replacementCostUsd > 0) {
+                        setReplacementCostUsd(est.replacementCostUsd);
+                        setCostRationale(est.rationale);
+                      } else {
+                        Alert.alert("Could not estimate", est.rationale || "Try adding more details.");
+                      }
+                    } catch {
+                      Alert.alert("Estimate failed", "Could not get an estimate. Try again later.");
+                    } finally {
+                      setEstimatingCost(false);
+                    }
+                  }}
+                  disabled={estimatingCost || !name.trim()}
+                  style={[
+                    styles.registerActionBtn,
+                    (!name.trim() || estimatingCost) && { opacity: 0.5 },
+                  ]}
+                >
+                  <Text style={styles.registerActionBtnText}>
+                    {estimatingCost ? "Estimating..." : "💰 Estimate Replacement Cost"}
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+
           <PrimaryButton
             title={isNew ? "Save to Inventory" : "Save Changes"}
             onPress={handleSave}
@@ -534,6 +908,110 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textMuted,
     lineHeight: 18,
+  },
+  warrantyPhoto: {
+    width: "100%",
+    height: 120,
+    borderRadius: radius.md,
+    backgroundColor: colors.border,
+  },
+  warrantyPhotoPlaceholder: {
+    width: "100%",
+    height: 60,
+    borderRadius: radius.md,
+    backgroundColor: "#f5f5f4",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  warrantyPhotoBtn: {
+    alignItems: "center",
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderStyle: "dashed",
+  },
+  warrantyPhotoBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.brand,
+  },
+  costDisplay: {
+    gap: spacing.sm,
+  },
+  costAmount: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: colors.text,
+  },
+  costRationale: {
+    fontSize: 12,
+    color: colors.textMuted,
+    lineHeight: 16,
+  },
+  costHint: {
+    fontSize: 12,
+    color: colors.textMuted,
+    lineHeight: 16,
+  },
+  refreshCostBtn: {
+    alignSelf: "flex-start",
+    paddingVertical: spacing.xs,
+  },
+  refreshCostBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.brand,
+  },
+  registrationSection: {
+    borderTopWidth: 1,
+    borderColor: colors.border,
+    paddingTop: spacing.sm,
+    gap: spacing.sm,
+  },
+  registrationHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  registrationToggle: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface,
+  },
+  registrationToggleActive: {
+    backgroundColor: "#d1fae5",
+    borderColor: "#047857",
+  },
+  registrationToggleText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.textMuted,
+  },
+  registrationToggleTextActive: {
+    color: "#047857",
+  },
+  registerActionBtn: {
+    backgroundColor: colors.brandLighter,
+    borderWidth: 1,
+    borderColor: colors.brandLight,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.md,
+    gap: 2,
+  },
+  registerActionBtnText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: colors.brand,
+  },
+  registerActionBtnHint: {
+    fontSize: 11,
+    color: colors.textMuted,
+    lineHeight: 15,
   },
   deleteBtn: {
     alignItems: "center",
