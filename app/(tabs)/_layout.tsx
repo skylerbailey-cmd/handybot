@@ -45,17 +45,24 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="(recalls)"
+        options={{
+          title: "Recalls",
+          tabBarIcon: () => <TabIcon emoji="⚠️" />,
+        }}
+      />
+      <Tabs.Screen
         name="(repair)"
         options={{
           title: "Repair",
           tabBarIcon: () => <TabIcon emoji="🔧" />,
         }}
       />
+      {/* Settings hidden from tab bar — accessible via gear icon in headers */}
       <Tabs.Screen
         name="(settings)"
         options={{
-          title: "Settings",
-          tabBarIcon: () => <TabIcon emoji="⚙️" />,
+          href: null,
         }}
       />
     </Tabs>

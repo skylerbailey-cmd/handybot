@@ -36,6 +36,12 @@ export default function ReminderRow({ reminder, onToggle, onMarkDone }: Props) {
           </Text>
         )}
         <View style={styles.metaRow}>
+          {reminder.room ? (
+            <>
+              <Text style={styles.metaText}>{reminder.room}</Text>
+              <Text style={styles.metaDot}>·</Text>
+            </>
+          ) : null}
           <Text style={styles.metaText}>
             {formatFrequency(reminder.frequencyDays)}
           </Text>

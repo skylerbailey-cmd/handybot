@@ -1,9 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { syncInventory } from "./cloud/sync";
-import { storagePrefix } from "./homes";
-import { generateId } from "./storage";
+import { getActiveHome, storagePrefix } from "./homes";
+import { formatFrequency, loadReminders } from "./reminders";
+import { generateId, loadIssues } from "./storage";
 import { isCloudBackupEnabled } from "./subscription";
-import type { AskMessage, HomeItem } from "./types";
+import type { AskMessage, HomeItem, Reminder, WarrantyStatus } from "./types";
 
 // --------------------------------------------------------------------------
 // Ask HandyBot conversation persistence
@@ -59,7 +60,10 @@ export async function saveInventory(items: HomeItem[]): Promise<void> {
     void syncInventory(items).then(async (normalized) => {
       if (!normalized) return;
       const changed = normalized.some(
-        (n, idx) => n.photoUri !== items[idx]?.photoUri
+        (n, idx) =>
+          n.photoUri !== items[idx]?.photoUri ||
+          n.warrantyPhotoUri !== items[idx]?.warrantyPhotoUri ||
+          n.receiptPhotoUri !== items[idx]?.receiptPhotoUri
       );
       if (changed) {
         try {
@@ -96,6 +100,18 @@ export async function updateHomeItem(
 }
 
 /**
+ * Compute the warranty status for a single inventory item.
+ */
+export function getWarrantyStatus(item: HomeItem): WarrantyStatus {
+  if (!item.warrantyExpiration) return "none";
+  const now = Date.now();
+  if (now > item.warrantyExpiration) return "expired";
+  const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+  if (item.warrantyExpiration - now < thirtyDays) return "expiring";
+  return "active";
+}
+
+/**
  * Returns items that are near or past their expected lifespan so the
  * home screen can surface proactive alerts.
  */
@@ -104,7 +120,116 @@ export function getItemsNeedingAttention(items: HomeItem[]): HomeItem[] {
     if (item.condition === "replace_soon" || item.condition === "poor") {
       return true;
     }
+    if (getWarrantyStatus(item) === "expiring") return true;
     const remaining = item.typicalLifespanYears - item.estimatedAgeYears;
     return remaining <= 1;
   });
+}
+
+// --------------------------------------------------------------------------
+// Home context for Ask HandyBot
+// --------------------------------------------------------------------------
+
+/**
+ * Builds a text summary of the user's home data (inventory, repairs,
+ * reminders) that can be injected into the Ask HandyBot system prompt
+ * so Claude can answer questions about the user's specific home.
+ */
+export async function buildHomeContext(): Promise<string> {
+  const [home, inventory, issues, reminders] = await Promise.all([
+    getActiveHome(),
+    loadInventory(),
+    loadIssues(),
+    loadReminders(),
+  ]);
+
+  const lines: string[] = [];
+  lines.push("=== USER'S HOME DATA ===");
+
+  if (home) {
+    lines.push(`\nHome: ${home.name}${home.address ? ` (${home.address})` : ""}`);
+  }
+
+  // Inventory
+  if (inventory.length > 0) {
+    lines.push(`\n--- HOME INVENTORY (${inventory.length} items) ---`);
+    for (const item of inventory) {
+      const parts = [`${item.icon} ${item.name}`];
+      if (item.make || item.model)
+        parts.push(`Brand/Model: ${[item.make, item.model].filter(Boolean).join(" ")}`);
+      if (item.serialNumber) parts.push(`Serial: ${item.serialNumber}`);
+      if (item.yearInstalled) parts.push(`Year: ${item.yearInstalled}`);
+      parts.push(`Age: ~${item.estimatedAgeYears}yr, Lifespan: ~${item.typicalLifespanYears}yr`);
+      parts.push(`Condition: ${item.condition}`);
+      if (item.conditionNotes) parts.push(`Notes: ${item.conditionNotes}`);
+
+      const ws = getWarrantyStatus(item);
+      if (ws !== "none") {
+        const expDate = item.warrantyExpiration
+          ? new Date(item.warrantyExpiration).toLocaleDateString()
+          : "unknown";
+        parts.push(`Warranty: ${ws} (expires ${expDate})`);
+        if (item.warrantyProvider) parts.push(`Provider: ${item.warrantyProvider}`);
+        if (item.warrantyCoverageNotes)
+          parts.push(`Coverage: ${item.warrantyCoverageNotes}`);
+      } else if (item.purchaseDate) {
+        parts.push(
+          `Purchased: ${new Date(item.purchaseDate).toLocaleDateString()}`
+        );
+      }
+
+      if (item.maintenanceTips.length > 0)
+        parts.push(`Tips: ${item.maintenanceTips.join("; ")}`);
+
+      lines.push(`\n• ${parts.join(" | ")}`);
+    }
+  }
+
+  // Repairs
+  const ongoing = issues.filter((i) => i.status === "in_progress");
+  const completed = issues.filter(
+    (i) => i.status === "completed" || i.status === "verified"
+  );
+
+  if (ongoing.length > 0) {
+    lines.push(`\n--- ONGOING REPAIRS (${ongoing.length}) ---`);
+    for (const issue of ongoing) {
+      const stepsDone = issue.plan.steps.filter((s) => s.completed).length;
+      lines.push(
+        `\n• ${issue.title}: ${issue.summary} | ${issue.plan.difficulty} | ${stepsDone}/${issue.plan.steps.length} steps done`
+      );
+    }
+  }
+
+  if (completed.length > 0) {
+    lines.push(`\n--- COMPLETED REPAIRS (${completed.length}) ---`);
+    const totalSaved = completed.reduce(
+      (s, i) => s + (i.plan.estimatedSavingsUsd ?? 0),
+      0
+    );
+    if (totalSaved > 0) lines.push(`Total saved: $${Math.round(totalSaved)}`);
+    for (const issue of completed.slice(0, 20)) {
+      const date = new Date(issue.createdAt).toLocaleDateString();
+      const saved = issue.plan.estimatedSavingsUsd
+        ? ` | Saved ~$${Math.round(issue.plan.estimatedSavingsUsd)}`
+        : "";
+      lines.push(`\n• ${issue.title} (${date}): ${issue.summary}${saved}`);
+    }
+    if (completed.length > 20)
+      lines.push(`\n... and ${completed.length - 20} more`);
+  }
+
+  // Reminders
+  const enabledReminders = reminders.filter((r) => r.enabled);
+  if (enabledReminders.length > 0) {
+    lines.push(`\n--- ACTIVE REMINDERS (${enabledReminders.length}) ---`);
+    for (const r of enabledReminders) {
+      const due = new Date(r.nextDue).toLocaleDateString();
+      lines.push(
+        `• ${r.icon} ${r.title}: every ${formatFrequency(r.frequencyDays)}, next due ${due}`
+      );
+    }
+  }
+
+  return lines.join("\n");
 }

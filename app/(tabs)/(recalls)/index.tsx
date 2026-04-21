@@ -1,7 +1,7 @@
 import { Stack, useFocusEffect } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import { useCallback, useMemo, useState } from "react";
 import {
-  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -99,7 +99,7 @@ export default function RecallsScreen() {
                 <Pressable
                   key={`${alert.recallId}-${alert.itemId}`}
                   onPress={() => {
-                    if (alert.url) Linking.openURL(alert.url);
+                    if (alert.url) WebBrowser.openBrowserAsync(alert.url);
                   }}
                   style={({ pressed }) => [
                     styles.recallCard,

@@ -1,12 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { loadInventory, saveInventory } from "../homeData";
 import { getActiveHomeId, loadHomes } from "../homes";
+import { loadRoomLabels } from "../rooms";
 import { ensureUser, loadIssues, saveIssues } from "../storage";
 import { loadReminders } from "../reminders";
 import { pushHomes } from "./homesRemote";
 import { pushInventory } from "./inventoryRemote";
 import { pushIssues } from "./issuesRemote";
 import { pushReminders } from "./remindersRemote";
+import { pushRooms } from "./roomsRemote";
 import { pushUser } from "./userRemote";
 
 /**
@@ -19,6 +21,7 @@ export type MigrateStage =
   | "issues"
   | "reminders"
   | "inventory"
+  | "rooms"
   | "done";
 
 export interface MigrateProgress {
@@ -84,6 +87,11 @@ export async function runInitialBackfill(
   if (syncedInventory.length > 0) {
     await saveInventory(syncedInventory);
   }
+
+  // 6. Custom room labels.
+  report("rooms", "Uploading rooms…");
+  const rooms = await loadRoomLabels();
+  await pushRooms({ userId: user.id, homeId, rooms });
 
   // Record that backfill has completed so we don't run it again needlessly.
   try {

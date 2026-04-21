@@ -217,6 +217,8 @@ export interface Reminder {
   notificationId?: string;
   /** Optional link back to the repair this reminder was created from. */
   sourceIssueId?: string;
+  /** Room label this reminder is associated with (e.g. "Kitchen"). */
+  room?: string;
   createdAt: number;
 }
 

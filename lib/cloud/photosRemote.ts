@@ -32,14 +32,32 @@ export async function uploadLocalImageIfNeeded(
     });
     const bytes = decodeBase64(base64);
 
+    // Detect file type from extension
+    const lowerUri = localUri.toLowerCase();
+    const EXT_MAP: Record<string, { ext: string; contentType: string }> = {
+      ".pdf": { ext: "pdf", contentType: "application/pdf" },
+      ".png": { ext: "png", contentType: "image/png" },
+      ".doc": { ext: "doc", contentType: "application/msword" },
+      ".docx": {
+        ext: "docx",
+        contentType:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      },
+    };
+    const match = Object.entries(EXT_MAP).find(([suffix]) =>
+      lowerUri.endsWith(suffix)
+    );
+    const ext = match ? match[1].ext : "jpg";
+    const contentType = match ? match[1].contentType : "image/jpeg";
+
     const path = `${userId}/${Date.now()}_${Math.random()
       .toString(36)
-      .slice(2, 8)}.jpg`;
+      .slice(2, 8)}.${ext}`;
 
     const { error } = await supabase.storage
       .from("photos")
       .upload(path, bytes, {
-        contentType: "image/jpeg",
+        contentType,
         upsert: false,
       });
     if (error) {

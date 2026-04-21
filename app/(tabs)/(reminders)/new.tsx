@@ -14,6 +14,7 @@ export default function NewReminderScreen() {
     prefillIcon?: string;
     prefillFrequencyDays?: string;
     sourceItemId?: string;
+    prefillRoom?: string;
   }>();
   const [submitting, setSubmitting] = useState(false);
 
@@ -40,6 +41,7 @@ export default function NewReminderScreen() {
         frequencyDays: values.frequencyDays,
         startDate: new Date(values.nextDue),
         sourceIssueId: params.sourceItemId,
+        room: params.prefillRoom,
       });
       router.back();
     } catch (err) {

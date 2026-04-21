@@ -25,6 +25,7 @@ export async function pushReminders(args: {
       enabled: r.enabled,
       notification_id: r.notificationId ?? null,
       source_issue_id: r.sourceIssueId ?? null,
+      room: r.room ?? null,
       created_at: r.createdAt,
     }));
     const { error } = await supabase

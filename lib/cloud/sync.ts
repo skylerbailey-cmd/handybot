@@ -7,6 +7,7 @@ import { pushHomes } from "./homesRemote";
 import { pushInventory } from "./inventoryRemote";
 import { pushIssues } from "./issuesRemote";
 import { pushReminders } from "./remindersRemote";
+import { pushRooms } from "./roomsRemote";
 import { pushUser } from "./userRemote";
 
 /**
@@ -97,4 +98,15 @@ export async function syncInventory(
     });
   });
   return result;
+}
+
+export async function syncRooms(rooms: string[]): Promise<void> {
+  if (!shouldSync()) return;
+  await withUser(async (user) => {
+    await pushRooms({
+      userId: user.id,
+      homeId: getActiveHomeId(),
+      rooms,
+    });
+  });
 }

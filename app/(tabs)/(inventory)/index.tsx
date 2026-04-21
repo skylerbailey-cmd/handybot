@@ -1,9 +1,9 @@
 import { Stack, useFocusEffect, useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Image,
-  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,12 +18,14 @@ import {
   removeHomeItem,
   updateHomeItem,
 } from "@/lib/homeData";
+import { promptAndPickImage } from "@/lib/image";
 import { checkForRecalls, type RecallAlert } from "@/lib/recalls";
 import {
   createCustomReminder,
   formatFrequency,
   loadReminders,
 } from "@/lib/reminders";
+import { loadRoomLabels } from "@/lib/rooms";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { HomeItem, Reminder } from "@/lib/types";
 import { getRegistrationUrl, openRegistrationPage } from "@/lib/warrantyRegistry";
@@ -71,14 +73,18 @@ export default function InventoryScreen() {
   const [expandedReminderSections, setExpandedReminderSections] = useState<
     Set<string>
   >(new Set());
+  const [roomFilter, setRoomFilter] = useState<string | null>(null);
+  const [roomLabels, setRoomLabels] = useState<string[]>([]);
 
   const refresh = useCallback(async () => {
-    const [loadedItems, loadedReminders] = await Promise.all([
+    const [loadedItems, loadedReminders, loadedRooms] = await Promise.all([
       loadInventory(),
       loadReminders(),
+      loadRoomLabels(),
     ]);
     setItems(loadedItems);
     setReminders(loadedReminders);
+    setRoomLabels(loadedRooms);
 
     // Check for CPSC recalls in the background (cached for 24h)
     if (loadedItems.length > 0) {
@@ -96,7 +102,22 @@ export default function InventoryScreen() {
     }, [refresh])
   );
 
-  const attention = useMemo(() => getItemsNeedingAttention(items), [items]);
+  // Rooms that actually have items assigned — only show these as filter chips
+  const roomsInUse = useMemo(() => {
+    const used = new Set<string>();
+    for (const item of items) {
+      if (item.room) used.add(item.room);
+    }
+    return roomLabels.filter((r) => used.has(r));
+  }, [items, roomLabels]);
+
+  // Apply room filter
+  const filteredItems = useMemo(
+    () => (roomFilter ? items.filter((i) => i.room === roomFilter) : items),
+    [items, roomFilter]
+  );
+
+  const attention = useMemo(() => getItemsNeedingAttention(filteredItems), [filteredItems]);
 
   // Group recall alerts by item ID for per-card badges
   const recallsByItem = useMemo(() => {
@@ -131,26 +152,27 @@ export default function InventoryScreen() {
         prefillIcon: reminder.icon,
         prefillFrequencyDays: String(reminder.frequencyDays),
         sourceItemId: item.id,
+        prefillRoom: item.room || undefined,
       },
     });
   }
 
   const grouped = useMemo(() => {
     const map = new Map<string, HomeItem[]>();
-    for (const item of items) {
+    for (const item of filteredItems) {
       const list = map.get(item.category) ?? [];
       list.push(item);
       map.set(item.category, list);
     }
     return Array.from(map.entries());
-  }, [items]);
+  }, [filteredItems]);
 
   // Items with warranties, sorted by expiration (soonest first)
   const warrantyItems = useMemo(() => {
-    return items
+    return filteredItems
       .filter((i) => i.warrantyExpiration)
       .sort((a, b) => a.warrantyExpiration! - b.warrantyExpiration!);
-  }, [items]);
+  }, [filteredItems]);
 
   // Auto-create warranty expiration reminders for items within 60 days
   useEffect(() => {
@@ -180,6 +202,7 @@ export default function InventoryScreen() {
         frequencyDays: 365, // won't repeat meaningfully — one-shot
         startDate,
         sourceIssueId: item.id,
+        room: item.room || undefined,
       }).then(() => {
         refresh();
       }).catch(() => {
@@ -248,7 +271,52 @@ export default function InventoryScreen() {
         }}
       />
       <ScrollView contentContainerStyle={styles.container}>
-        {items.length === 0 && (
+        {roomsInUse.length > 1 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.roomFilterRow}
+            style={styles.roomFilterScroll}
+          >
+            <Pressable
+              onPress={() => setRoomFilter(null)}
+              style={[
+                styles.roomFilterChip,
+                !roomFilter && styles.roomFilterChipActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.roomFilterChipText,
+                  !roomFilter && styles.roomFilterChipTextActive,
+                ]}
+              >
+                All rooms
+              </Text>
+            </Pressable>
+            {roomsInUse.map((r) => (
+              <Pressable
+                key={r}
+                onPress={() => setRoomFilter(roomFilter === r ? null : r)}
+                style={[
+                  styles.roomFilterChip,
+                  roomFilter === r && styles.roomFilterChipActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.roomFilterChipText,
+                    roomFilter === r && styles.roomFilterChipTextActive,
+                  ]}
+                >
+                  {r}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
+
+        {filteredItems.length === 0 && !roomFilter && items.length === 0 && (
           <View style={styles.empty}>
             <View style={styles.emptyIcon}>
               <Text style={styles.emptyIconText}>🏠</Text>
@@ -312,7 +380,7 @@ export default function InventoryScreen() {
                 <Pressable
                   key={`${alert.recallId}-${alert.itemId}`}
                   onPress={() => {
-                    if (alert.url) Linking.openURL(alert.url);
+                    if (alert.url) WebBrowser.openBrowserAsync(alert.url);
                   }}
                   style={styles.recallRow}
                 >
@@ -477,7 +545,7 @@ export default function InventoryScreen() {
                       <Pressable
                         onPress={() => {
                           const alert = recallsByItem.get(item.id)![0];
-                          if (alert.url) Linking.openURL(alert.url);
+                          if (alert.url) WebBrowser.openBrowserAsync(alert.url);
                         }}
                         style={styles.recallBadge}
                       >
@@ -503,54 +571,91 @@ export default function InventoryScreen() {
                         </View>
                       );
                     })()}
-                    {/* Register Warranty button */}
-                    {item.make && !item.warrantyRegistered && (
-                      <Pressable
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          openRegistrationPage(item).then(() => {
-                            // Mark as registered after opening the page
-                            Alert.alert(
-                              "Mark as registered?",
-                              "Did you complete the warranty registration?",
-                              [
-                                { text: "Not yet", style: "cancel" },
-                                {
-                                  text: "Yes, registered",
-                                  onPress: async () => {
-                                    await updateHomeItem(item.id, {
-                                      warrantyRegistered: true,
-                                    });
-                                    refresh();
+                    {/* Warranty + Receipt action row */}
+                    <View style={styles.actionRow}>
+                      {item.make && !item.warrantyRegistered && (
+                        <Pressable
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            openRegistrationPage(item).then(() => {
+                              Alert.alert(
+                                "Mark as registered?",
+                                "Did you complete the warranty registration?",
+                                [
+                                  { text: "Not yet", style: "cancel" },
+                                  {
+                                    text: "Yes, registered",
+                                    onPress: async () => {
+                                      await updateHomeItem(item.id, {
+                                        warrantyRegistered: true,
+                                      });
+                                      refresh();
+                                      // Prompt to upload warranty document
+                                      Alert.alert(
+                                        "Save warranty info?",
+                                        "Upload a photo or PDF of your warranty confirmation, certificate, or email so you have it on file.",
+                                        [
+                                          { text: "Skip", style: "cancel" },
+                                          {
+                                            text: "Upload",
+                                            onPress: async () => {
+                                              const result = await promptAndPickImage(
+                                                "Warranty document",
+                                                { includeFiles: true }
+                                              );
+                                              if (result) {
+                                                await updateHomeItem(item.id, {
+                                                  warrantyPhotoUri: result.uri,
+                                                });
+                                                refresh();
+                                              }
+                                            },
+                                          },
+                                        ]
+                                      );
+                                    },
                                   },
-                                },
-                              ]
-                            );
-                          });
-                        }}
-                        style={styles.registerBtn}
-                      >
-                        <Text style={styles.registerBtnText}>
-                          📋 Register Warranty
-                        </Text>
-                        {getRegistrationUrl(item.make) ? (
-                          <Text style={styles.registerBtnHint}>
-                            Opens {item.make} registration
+                                ]
+                              );
+                            });
+                          }}
+                          style={styles.actionBtn}
+                        >
+                          <Text style={styles.actionBtnText}>
+                            📋 Register Warranty
                           </Text>
-                        ) : (
-                          <Text style={styles.registerBtnHint}>
-                            Search for registration page
+                        </Pressable>
+                      )}
+                      {item.warrantyRegistered && (
+                        <View style={styles.registeredBadge}>
+                          <Text style={styles.registeredBadgeText}>
+                            ✓ Warranty Registered
                           </Text>
-                        )}
-                      </Pressable>
-                    )}
-                    {item.warrantyRegistered && (
-                      <View style={styles.registeredBadge}>
-                        <Text style={styles.registeredBadgeText}>
-                          ✓ Warranty Registered
-                        </Text>
-                      </View>
-                    )}
+                        </View>
+                      )}
+                      {!item.receiptPhotoUri ? (
+                        <Pressable
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            router.push({
+                              pathname: "/(tabs)/(inventory)/edit",
+                              params: { itemId: item.id, scrollTo: "receipt" },
+                            });
+                          }}
+                          style={styles.actionBtn}
+                        >
+                          <Text style={styles.actionBtnText}>
+                            🧾 Add Receipt
+                          </Text>
+                        </Pressable>
+                      ) : (
+                        <View style={styles.registeredBadge}>
+                          <Text style={styles.registeredBadgeText}>
+                            ✓ Receipt Saved
+                          </Text>
+                        </View>
+                      )}
+                    </View>
                     <Text style={styles.itemNotes} numberOfLines={2}>
                       {item.conditionNotes}
                     </Text>
@@ -561,6 +666,12 @@ export default function InventoryScreen() {
                       </Text>
                     )}
                     <View style={styles.itemMeta}>
+                      {item.room ? (
+                        <>
+                          <Text style={styles.itemMetaText}>{item.room}</Text>
+                          <Text style={styles.itemMetaDot}>·</Text>
+                        </>
+                      ) : null}
                       <Text style={styles.itemMetaText}>
                         ~{item.estimatedAgeYears}yr old
                       </Text>
@@ -675,6 +786,13 @@ export default function InventoryScreen() {
             })}
           </View>
         ))}
+
+        {filteredItems.length > 0 && roomFilter && (
+          <Text style={styles.roomFilterCountHint}>
+            Showing {filteredItems.length}{" "}
+            {filteredItems.length === 1 ? "item" : "items"} in {roomFilter}
+          </Text>
+        )}
 
         {items.length > 0 && (
           <Pressable
@@ -1039,24 +1157,23 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#dc2626",
   },
-  registerBtn: {
-    alignSelf: "flex-start",
+  actionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  actionBtn: {
     backgroundColor: colors.brandLighter,
     borderWidth: 1,
     borderColor: colors.brandLight,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.md,
-    gap: 2,
   },
-  registerBtnText: {
+  actionBtnText: {
     fontSize: 12,
     fontWeight: "800",
     color: colors.brand,
-  },
-  registerBtnHint: {
-    fontSize: 10,
-    color: colors.textMuted,
   },
   insuranceBtn: {
     flexDirection: "row",
@@ -1142,5 +1259,40 @@ const styles = StyleSheet.create({
   warrantyStatusText: {
     fontSize: 10,
     fontWeight: "800",
+  },
+  roomFilterScroll: {
+    marginBottom: spacing.lg,
+    flexGrow: 0,
+  },
+  roomFilterRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  roomFilterChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.pill,
+    backgroundColor: "#f5f5f4",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  roomFilterChipActive: {
+    backgroundColor: colors.brandLight,
+    borderColor: colors.brand,
+  },
+  roomFilterChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.textMuted,
+  },
+  roomFilterChipTextActive: {
+    color: colors.brandDark,
+    fontWeight: "700",
+  },
+  roomFilterCountHint: {
+    fontSize: 12,
+    color: colors.textSubtle,
+    textAlign: "center",
+    marginTop: spacing.sm,
   },
 });

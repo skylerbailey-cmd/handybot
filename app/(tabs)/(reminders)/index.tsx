@@ -36,7 +36,7 @@ import { colors, radius, spacing } from "@/lib/theme";
 import type { MaintenanceTemplate, Reminder } from "@/lib/types";
 
 type TabKey = "active" | "suggested";
-type GroupBy = "status" | "category";
+type GroupBy = "status" | "category" | "room";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -110,7 +110,6 @@ export default function RemindersScreen() {
     const start = new Date(Date.now() + template.frequencyDays * DAY_MS);
     await createReminderFromTemplate(template, start);
     await refresh();
-    setTab("active");
   }
 
   async function handleToggle(reminder: Reminder, enabled: boolean) {
@@ -283,7 +282,9 @@ function ActiveList({
   const groups =
     groupBy === "status"
       ? groupRemindersByStatus(reminders)
-      : groupRemindersByCategory(reminders);
+      : groupBy === "room"
+        ? groupRemindersByRoom(reminders)
+        : groupRemindersByCategory(reminders);
 
   // Float the highlighted reminder to the top of its group so the user sees
   // it immediately after tapping a notification.
@@ -330,6 +331,22 @@ function ActiveList({
             ]}
           >
             By category
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => onGroupByChange("room")}
+          style={[
+            styles.groupByChip,
+            groupBy === "room" && styles.groupByChipActive,
+          ]}
+        >
+          <Text
+            style={[
+              styles.groupByChipText,
+              groupBy === "room" && styles.groupByChipTextActive,
+            ]}
+          >
+            By room
           </Text>
         </Pressable>
       </View>
@@ -450,6 +467,31 @@ function groupRemindersByCategory(reminders: Reminder[]): ReminderGroup[] {
         items,
       });
     }
+  }
+  return groups;
+}
+
+function groupRemindersByRoom(reminders: Reminder[]): ReminderGroup[] {
+  const bySoonest = (a: Reminder, b: Reminder) => a.nextDue - b.nextDue;
+  const map = new Map<string, Reminder[]>();
+  for (const r of reminders) {
+    const room = r.room || "No room";
+    const list = map.get(room) ?? [];
+    list.push(r);
+    map.set(room, list);
+  }
+
+  const groups: ReminderGroup[] = [];
+  // Named rooms first (sorted), then "No room" last
+  const keys = [...map.keys()].sort((a, b) => {
+    if (a === "No room") return 1;
+    if (b === "No room") return -1;
+    return a.localeCompare(b);
+  });
+  for (const key of keys) {
+    const items = map.get(key)!;
+    items.sort(bySoonest);
+    groups.push({ key, label: key, items });
   }
   return groups;
 }

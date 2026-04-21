@@ -175,7 +175,128 @@ export const MAINTENANCE_TEMPLATES: readonly MaintenanceTemplate[] = [
     icon: "🍳",
     frequencyDays: 30,
   },
+  // --- Interior -----------------------------------------------------------
+  {
+    id: "shower_caulk",
+    title: "Inspect tub & shower caulk",
+    description:
+      "Check the caulk around bathtubs, showers, and backsplashes for cracks, gaps, or mildew. Re-caulk failing joints to prevent water damage behind walls.",
+    category: "interior",
+    icon: "🛁",
+    frequencyDays: 180,
+  },
+  {
+    id: "garbage_disposal",
+    title: "Clean garbage disposal",
+    description:
+      "Run ice cubes and a cut-up lemon through the disposal to clear buildup and deodorize. Follow with cold water for 30 seconds.",
+    category: "interior",
+    icon: "🍋",
+    frequencyDays: 30,
+  },
+  {
+    id: "garage_door_safety",
+    title: "Test garage door auto-reverse",
+    description:
+      "Place a 2x4 flat on the ground under the door and close it. The door should reverse when it hits the board. Also test the photo-eye sensors by waving an object through the beam.",
+    category: "interior",
+    icon: "🚗",
+    frequencyDays: 90,
+  },
+  {
+    id: "weather_stripping",
+    title: "Check door weather stripping",
+    description:
+      "Inspect weather stripping on all exterior doors for gaps, tears, or compression. Replace worn strips to keep drafts and moisture out.",
+    category: "interior",
+    icon: "🚪",
+    frequencyDays: 365,
+  },
+  {
+    id: "deep_clean_carpet",
+    title: "Deep-clean carpets & rugs",
+    description:
+      "Rent or run a carpet cleaner on high-traffic areas. Regular deep cleaning extends carpet life and removes allergens that vacuuming misses.",
+    category: "interior",
+    icon: "🧹",
+    frequencyDays: 365,
+  },
+  // --- Plumbing (additional) ----------------------------------------------
+  {
+    id: "washer_hoses",
+    title: "Inspect washing machine hoses",
+    description:
+      "Check the hot and cold supply hoses behind the washing machine for bulges, cracks, or dampness. Rubber hoses should be replaced every 3-5 years; braided stainless lasts longer.",
+    category: "plumbing",
+    icon: "🔧",
+    frequencyDays: 180,
+  },
+  {
+    id: "faucet_aerators",
+    title: "Clean faucet aerators",
+    description:
+      "Unscrew the aerator on each faucet and soak it in vinegar to dissolve mineral deposits. This restores water pressure and flow consistency.",
+    category: "plumbing",
+    icon: "🚰",
+    frequencyDays: 365,
+  },
+  // --- HVAC (additional) --------------------------------------------------
+  {
+    id: "condensate_drain",
+    title: "Clear AC condensate drain line",
+    description:
+      "Pour a cup of distilled vinegar or bleach through the condensate drain line to prevent algae clogs. A clogged line can cause water damage or trigger a system shutoff.",
+    category: "hvac",
+    icon: "💧",
+    frequencyDays: 180,
+  },
+  // --- Exterior (additional) ----------------------------------------------
+  {
+    id: "power_wash",
+    title: "Power wash siding & walkways",
+    description:
+      "Pressure-wash vinyl/fiber cement siding, the driveway, patio, and walkways to remove mold, mildew, and dirt buildup. Spring is ideal before outdoor season.",
+    category: "exterior",
+    icon: "💦",
+    frequencyDays: 365,
+  },
+  {
+    id: "foundation_inspect",
+    title: "Inspect foundation for cracks",
+    description:
+      "Walk the perimeter and check the visible foundation for new cracks, efflorescence (white powder), or signs of water intrusion. Mark new cracks with tape to monitor growth.",
+    category: "exterior",
+    icon: "🧱",
+    frequencyDays: 365,
+  },
   // --- Yard ---------------------------------------------------------------
+  {
+    id: "mower_maintenance",
+    title: "Service lawn mower",
+    description:
+      "Change the oil, replace or clean the air filter, sharpen the blade, and replace the spark plug. A well-maintained mower cuts cleaner and lasts longer.",
+    category: "yard",
+    icon: "🌿",
+    frequencyDays: 365,
+  },
+  {
+    id: "tree_trim",
+    title: "Trim trees away from house",
+    description:
+      "Cut back any branches within 10 feet of the roof, siding, or power lines. Overhanging limbs drop debris on the roof, hold moisture, and risk storm damage.",
+    category: "yard",
+    icon: "🌳",
+    frequencyDays: 365,
+  },
+  {
+    id: "deck_inspect",
+    title: "Inspect deck or patio",
+    description:
+      "Check for loose boards, popped nails, soft or rotting wood, and wobbly railings. Probe suspect areas with a screwdriver — it shouldn't sink in easily.",
+    category: "yard",
+    icon: "🪵",
+    frequencyDays: 365,
+  },
   {
     id: "sprinkler_winterize",
     title: "Winterize sprinkler system",

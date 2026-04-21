@@ -18,7 +18,6 @@ import PrimaryButton from "@/components/PrimaryButton";
 import {
   analyzeHomeItem,
   analyzeWarrantyDocument,
-  estimateReplacementCost,
 } from "@/lib/claude";
 import {
   addHomeItem,
@@ -27,8 +26,9 @@ import {
   updateHomeItem,
 } from "@/lib/homeData";
 import { promptAndPickImage, readImageAsBase64 } from "@/lib/image";
+import { addCustomRoom, loadRoomLabels } from "@/lib/rooms";
 import { generateId } from "@/lib/storage";
-import { colors, formatMoney, radius, spacing } from "@/lib/theme";
+import { colors, radius, spacing } from "@/lib/theme";
 import type { HomeItem, ItemCondition } from "@/lib/types";
 import { getRegistrationUrl, openRegistrationPage } from "@/lib/warrantyRegistry";
 
@@ -80,9 +80,6 @@ export default function InventoryEditScreen() {
   const [receiptPhotoFailed, setReceiptPhotoFailed] = useState(false);
   const [analyzingWarranty, setAnalyzingWarranty] = useState(false);
   const [warrantyRegistered, setWarrantyRegistered] = useState(false);
-  const [replacementCostUsd, setReplacementCostUsd] = useState<number | undefined>();
-  const [costRationale, setCostRationale] = useState<string | undefined>();
-  const [estimatingCost, setEstimatingCost] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
 
   // Animated analyzing messages
@@ -119,15 +116,24 @@ export default function InventoryEditScreen() {
     return () => clearInterval(interval);
   }, [analyzing, fadeAnim]);
 
+  const [room, setRoom] = useState("");
+  const [roomOptions, setRoomOptions] = useState<string[]>([]);
+  const [showCustomRoom, setShowCustomRoom] = useState(false);
+  const [customRoomDraft, setCustomRoomDraft] = useState("");
+
   // Fields we keep from analysis but don't expose for editing
   const [category, setCategory] = useState("other");
   const [icon, setIcon] = useState("🏠");
-  const [room, setRoom] = useState("");
   const [maintenanceTips, setMaintenanceTips] = useState<string[]>([]);
   const [suggestedReminders, setSuggestedReminders] = useState<
     HomeItem["suggestedReminders"]
   >(undefined);
   const [existingItem, setExistingItem] = useState<HomeItem | null>(null);
+
+  // Load room labels
+  useEffect(() => {
+    loadRoomLabels().then(setRoomOptions);
+  }, []);
 
   // Load data based on mode (new vs edit)
   useEffect(() => {
@@ -167,7 +173,6 @@ export default function InventoryEditScreen() {
           setWarrantyPhotoUri(found.warrantyPhotoUri);
           setReceiptPhotoUri(found.receiptPhotoUri);
           setWarrantyRegistered(found.warrantyRegistered ?? false);
-          setReplacementCostUsd(found.replacementCostUsd);
         }
       });
     } else if (params.analyzedData) {
@@ -187,6 +192,7 @@ export default function InventoryEditScreen() {
         setIcon(data.icon ?? "🏠");
         setMaintenanceTips(data.maintenanceTips ?? []);
         setSuggestedReminders(data.suggestedReminders);
+        if (data.suggestedRoom) setRoom(data.suggestedRoom);
         if (data.purchaseDateHint) setPurchaseDate(data.purchaseDateHint);
         if (data.warrantyYearsHint && data.purchaseDateHint) {
           const pd = new Date(data.purchaseDateHint);
@@ -231,6 +237,7 @@ export default function InventoryEditScreen() {
       setIcon(data.icon ?? "🏠");
       setMaintenanceTips(data.maintenanceTips ?? []);
       setSuggestedReminders(data.suggestedReminders);
+      if (data.suggestedRoom && !room) setRoom(data.suggestedRoom);
       if (data.purchaseDateHint) setPurchaseDate(data.purchaseDateHint);
       if (data.warrantyYearsHint && data.purchaseDateHint) {
         const pd = new Date(data.purchaseDateHint);
@@ -290,35 +297,17 @@ export default function InventoryEditScreen() {
           warrantyPhotoUri,
           receiptPhotoUri,
           warrantyRegistered,
-          replacementCostUsd,
           createdAt: Date.now(),
           updatedAt: Date.now(),
         };
         await addHomeItem(item);
-
-        // Background: estimate replacement cost if not already set
-        if (!replacementCostUsd && name.trim()) {
-          void estimateReplacementCost({
-            name: name.trim(),
-            make: make.trim() || undefined,
-            model: model.trim() || undefined,
-            category: category || undefined,
-            yearInstalled: yearNum || undefined,
-          })
-            .then((est) => {
-              if (est.replacementCostUsd > 0) {
-                void updateHomeItem(item.id, {
-                  replacementCostUsd: est.replacementCostUsd,
-                });
-              }
-            })
-            .catch(() => {
-              /* non-blocking */
-            });
-        }
       } else if (params.itemId) {
         await updateHomeItem(params.itemId, {
           name: name.trim(),
+          category,
+          icon,
+          room,
+          photoUri,
           make: make.trim() || undefined,
           model: model.trim() || undefined,
           serialNumber: serialNumber.trim() || undefined,
@@ -327,6 +316,8 @@ export default function InventoryEditScreen() {
           estimatedAgeYears: ageNum,
           typicalLifespanYears: lifespanNum,
           condition,
+          maintenanceTips,
+          suggestedReminders,
           purchaseDate: purchaseDateMs || undefined,
           warrantyExpiration: warrantyExpirationMs || undefined,
           warrantyProvider: warrantyProvider.trim() || undefined,
@@ -334,29 +325,7 @@ export default function InventoryEditScreen() {
           warrantyPhotoUri,
           receiptPhotoUri,
           warrantyRegistered,
-          replacementCostUsd,
         });
-
-        // Background: estimate replacement cost if not already set
-        if (!replacementCostUsd && name.trim()) {
-          void estimateReplacementCost({
-            name: name.trim(),
-            make: make.trim() || undefined,
-            model: model.trim() || undefined,
-            category: category || undefined,
-            yearInstalled: yearNum || undefined,
-          })
-            .then((est) => {
-              if (est.replacementCostUsd > 0) {
-                void updateHomeItem(params.itemId!, {
-                  replacementCostUsd: est.replacementCostUsd,
-                });
-              }
-            })
-            .catch(() => {
-              /* non-blocking */
-            });
-        }
       }
       router.back();
     } catch (err) {
@@ -392,7 +361,6 @@ export default function InventoryEditScreen() {
     warrantyPhotoUri,
     receiptPhotoUri,
     warrantyRegistered,
-    replacementCostUsd,
     params.itemId,
     router,
   ]);
@@ -466,6 +434,73 @@ export default function InventoryEditScreen() {
               placeholderTextColor={colors.textSubtle}
               style={styles.input}
             />
+          </View>
+
+          {/* Room */}
+          <View style={styles.card}>
+            <Text style={styles.label}>Room</Text>
+            <View style={styles.roomChips}>
+              {roomOptions.map((r) => {
+                const active = room === r;
+                return (
+                  <Pressable
+                    key={r}
+                    onPress={() => setRoom(active ? "" : r)}
+                    style={[
+                      styles.roomChip,
+                      active && styles.roomChipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.roomChipText,
+                        active && styles.roomChipTextActive,
+                      ]}
+                    >
+                      {r}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+              <Pressable
+                onPress={() => setShowCustomRoom(!showCustomRoom)}
+                style={[
+                  styles.roomChip,
+                  styles.roomChipAdd,
+                ]}
+              >
+                <Text style={styles.roomChipAddText}>+ Custom</Text>
+              </Pressable>
+            </View>
+            {showCustomRoom && (
+              <View style={styles.customRoomRow}>
+                <TextInput
+                  value={customRoomDraft}
+                  onChangeText={setCustomRoomDraft}
+                  placeholder="e.g. Sun Room, Workshop"
+                  placeholderTextColor={colors.textSubtle}
+                  style={[styles.input, { flex: 1 }]}
+                  autoFocus
+                />
+                <Pressable
+                  onPress={async () => {
+                    const label = customRoomDraft.trim();
+                    if (!label) return;
+                    await addCustomRoom(label);
+                    setRoom(label);
+                    setCustomRoomDraft("");
+                    setShowCustomRoom(false);
+                    setRoomOptions(await loadRoomLabels());
+                  }}
+                  style={styles.customRoomAddBtn}
+                >
+                  <Text style={styles.customRoomAddBtnText}>Add</Text>
+                </Pressable>
+              </View>
+            )}
+            {room ? (
+              <Text style={styles.roomSelected}>Selected: {room}</Text>
+            ) : null}
           </View>
 
           {/* Make / Model / Serial / Year */}
@@ -668,7 +703,8 @@ export default function InventoryEditScreen() {
             <Pressable
               onPress={async () => {
                 const result = await promptAndPickImage(
-                  "Photograph warranty card or certificate"
+                  "Warranty card or certificate",
+                  { includeFiles: true }
                 );
                 if (!result) return;
                 setWarrantyPhotoUri(result.uri);
@@ -723,7 +759,8 @@ export default function InventoryEditScreen() {
             <Pressable
               onPress={async () => {
                 const result = await promptAndPickImage(
-                  "Photograph your receipt"
+                  "Purchase receipt",
+                  { includeFiles: true }
                 );
                 if (!result) return;
                 setReceiptPhotoUri(result.uri);
@@ -838,89 +875,6 @@ export default function InventoryEditScreen() {
                 </Pressable>
               )}
             </View>
-          </View>
-
-          {/* Replacement Cost (for insurance export) */}
-          <View style={styles.card}>
-            <Text style={styles.label}>Replacement Cost</Text>
-            {replacementCostUsd ? (
-              <View style={styles.costDisplay}>
-                <Text style={styles.costAmount}>
-                  {formatMoney(replacementCostUsd)}
-                </Text>
-                {costRationale ? (
-                  <Text style={styles.costRationale}>{costRationale}</Text>
-                ) : null}
-                <Pressable
-                  onPress={async () => {
-                    if (estimatingCost) return;
-                    setEstimatingCost(true);
-                    try {
-                      const est = await estimateReplacementCost({
-                        name: name.trim(),
-                        make: make.trim() || undefined,
-                        model: model.trim() || undefined,
-                        category: category || undefined,
-                        yearInstalled: Number(yearInstalled) || undefined,
-                      });
-                      if (est.replacementCostUsd > 0) {
-                        setReplacementCostUsd(est.replacementCostUsd);
-                        setCostRationale(est.rationale);
-                      }
-                    } catch {
-                      Alert.alert("Estimate failed", "Could not get an estimate. Try again later.");
-                    } finally {
-                      setEstimatingCost(false);
-                    }
-                  }}
-                  style={styles.refreshCostBtn}
-                >
-                  <Text style={styles.refreshCostBtnText}>
-                    {estimatingCost ? "Estimating..." : "↻ Re-estimate"}
-                  </Text>
-                </Pressable>
-              </View>
-            ) : (
-              <View style={styles.costDisplay}>
-                <Text style={styles.costHint}>
-                  AI-estimated replacement cost for insurance documentation.
-                </Text>
-                <Pressable
-                  onPress={async () => {
-                    if (estimatingCost || !name.trim()) return;
-                    setEstimatingCost(true);
-                    try {
-                      const est = await estimateReplacementCost({
-                        name: name.trim(),
-                        make: make.trim() || undefined,
-                        model: model.trim() || undefined,
-                        category: category || undefined,
-                        yearInstalled: Number(yearInstalled) || undefined,
-                      });
-                      if (est.replacementCostUsd > 0) {
-                        setReplacementCostUsd(est.replacementCostUsd);
-                        setCostRationale(est.rationale);
-                      } else {
-                        Alert.alert("Could not estimate", est.rationale || "Try adding more details.");
-                      }
-                    } catch {
-                      Alert.alert("Estimate failed", "Could not get an estimate. Try again later.");
-                    } finally {
-                      setEstimatingCost(false);
-                    }
-                  }}
-                  disabled={estimatingCost || !name.trim()}
-                  style={[
-                    styles.registerActionBtn,
-                    (!name.trim() || estimatingCost) && { opacity: 0.5 },
-                  ]}
-                >
-                  <Text style={styles.registerActionBtnText}>
-                    {estimatingCost ? "Estimating..." : "💰 Estimate Replacement Cost"}
-                  </Text>
-                </Pressable>
-              </View>
-            )}
           </View>
 
           <PrimaryButton
@@ -1160,33 +1114,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.brand,
   },
-  costDisplay: {
-    gap: spacing.sm,
-  },
-  costAmount: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: colors.text,
-  },
-  costRationale: {
-    fontSize: 12,
-    color: colors.textMuted,
-    lineHeight: 16,
-  },
-  costHint: {
-    fontSize: 12,
-    color: colors.textMuted,
-    lineHeight: 16,
-  },
-  refreshCostBtn: {
-    alignSelf: "flex-start",
-    paddingVertical: spacing.xs,
-  },
-  refreshCostBtnText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: colors.brand,
-  },
   registrationSection: {
     borderTopWidth: 1,
     borderColor: colors.border,
@@ -1246,5 +1173,61 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: colors.danger,
+  },
+  roomChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs + 2,
+  },
+  roomChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface,
+  },
+  roomChipActive: {
+    backgroundColor: colors.brandLight,
+    borderColor: colors.brand,
+  },
+  roomChipText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.textMuted,
+  },
+  roomChipTextActive: {
+    color: colors.brandDark,
+    fontWeight: "800",
+  },
+  roomChipAdd: {
+    borderStyle: "dashed",
+  },
+  roomChipAddText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.brand,
+  },
+  customRoomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  customRoomAddBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.brand,
+  },
+  customRoomAddBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#ffffff",
+  },
+  roomSelected: {
+    fontSize: 12,
+    color: colors.textSubtle,
+    marginTop: spacing.xs,
   },
 });

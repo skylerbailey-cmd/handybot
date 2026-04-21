@@ -11,8 +11,9 @@ import {
   View,
 } from "react-native";
 import PrimaryButton from "@/components/PrimaryButton";
+import { estimateReplacementCost } from "@/lib/claude";
 import { getActiveHome, type Home } from "@/lib/homes";
-import { loadInventory } from "@/lib/homeData";
+import { loadInventory, updateHomeItem } from "@/lib/homeData";
 import { computeAcv, exportInsurancePdf } from "@/lib/insuranceExport";
 import { ensureUser } from "@/lib/storage";
 import { isCloudBackupEnabled } from "@/lib/subscription";
@@ -27,6 +28,8 @@ export default function InsuranceExportScreen() {
   const [user, setUser] = useState<User | null>(null);
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
+  const [estimatingCosts, setEstimatingCosts] = useState(false);
+  const [costProgress, setCostProgress] = useState({ done: 0, total: 0 });
 
   useFocusEffect(
     useCallback(() => {
@@ -65,15 +68,85 @@ export default function InsuranceExportScreen() {
     });
   }
 
-  async function handleExport() {
-    if (exporting) return;
+  async function estimateMissingCosts(
+    itemsToEstimate: HomeItem[]
+  ): Promise<HomeItem[]> {
+    const needEstimate = itemsToEstimate.filter((i) => !i.replacementCostUsd);
+    if (needEstimate.length === 0) return itemsToEstimate;
+
+    setEstimatingCosts(true);
+    setCostProgress({ done: 0, total: needEstimate.length });
+
+    const updated = new Map<string, number>();
+    for (let i = 0; i < needEstimate.length; i++) {
+      const item = needEstimate[i];
+      try {
+        const est = await estimateReplacementCost({
+          name: item.name,
+          make: item.make,
+          model: item.model,
+          category: item.category,
+          yearInstalled: item.yearInstalled,
+        });
+        if (est.replacementCostUsd > 0) {
+          updated.set(item.id, est.replacementCostUsd);
+          // Persist so we don't re-estimate next time
+          void updateHomeItem(item.id, {
+            replacementCostUsd: est.replacementCostUsd,
+          });
+        }
+      } catch {
+        // Skip items that fail — they'll show $0
+      }
+      setCostProgress({ done: i + 1, total: needEstimate.length });
+    }
+
+    setEstimatingCosts(false);
+
+    // Return items with costs filled in
+    return itemsToEstimate.map((item) => {
+      const cost = updated.get(item.id);
+      return cost ? { ...item, replacementCostUsd: cost } : item;
+    });
+  }
+
+  function handleExport() {
+    if (exporting || estimatingCosts) return;
+
+    const missingCount = includedItems.filter((i) => !i.replacementCostUsd).length;
+    const costNote =
+      missingCount > 0
+        ? `\n\n${missingCount} item${missingCount !== 1 ? "s" : ""} without a cost estimate will be auto-estimated using AI before the PDF is generated. This may take a moment.`
+        : "";
+
+    Alert.alert(
+      "Export insurance PDF?",
+      `This will generate a Schedule of Personal Property PDF with ${includedItems.length} item${includedItems.length !== 1 ? "s" : ""}, including replacement costs, depreciated values, and a per-room breakdown.${costNote}\n\nThe PDF is formatted for insurance adjusters and can be shared directly with your insurance company.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Export PDF",
+          onPress: () => doExport(),
+        },
+      ]
+    );
+  }
+
+  async function doExport() {
     setExporting(true);
     try {
+      // Estimate any missing costs before generating the PDF
+      const costedItems = await estimateMissingCosts(includedItems);
+
       const uri = await exportInsurancePdf({
-        items: includedItems,
+        items: costedItems,
         home,
         user,
       });
+      // Refresh items so the UI shows the newly estimated costs
+      const refreshed = await loadInventory();
+      setItems(refreshed);
+
       await Sharing.shareAsync(uri, {
         mimeType: "application/pdf",
         UTI: "com.adobe.pdf",
@@ -171,6 +244,23 @@ export default function InsuranceExportScreen() {
       <Stack.Screen options={{ title: "Insurance Export" }} />
       <View style={styles.flex}>
         <ScrollView contentContainerStyle={styles.container}>
+          <View style={styles.explainerCard}>
+            <Text style={styles.explainerTitle}>
+              What is this?
+            </Text>
+            <Text style={styles.explainerBody}>
+              This generates a <Text style={{ fontWeight: "700" }}>Schedule of Personal
+              Property</Text> — a detailed PDF document listing everything in your
+              home with replacement costs and depreciated values. It's the standard
+              format insurance adjusters use to process claims after a fire, flood,
+              theft, or other covered loss.
+            </Text>
+            <Text style={styles.explainerBody}>
+              The more items you have in your inventory with photos and cost
+              estimates, the stronger your claim documentation will be.
+            </Text>
+          </View>
+
           {items.length === 0 ? (
             <View style={styles.empty}>
               <Text style={styles.emptyIcon}>📦</Text>
@@ -247,10 +337,13 @@ export default function InsuranceExportScreen() {
                 );
               })}
               {items.some((i) => !i.replacementCostUsd) && (
-                <Text style={styles.hint}>
-                  Items without a replacement cost estimate will show $0.
-                  Open the item to trigger an AI estimate.
-                </Text>
+                <View style={styles.autoEstimateCard}>
+                  <Text style={styles.autoEstimateText}>
+                    Items showing "—" for cost will be{" "}
+                    <Text style={{ fontWeight: "700" }}>automatically estimated
+                    using AI</Text> when you tap Export PDF.
+                  </Text>
+                </View>
               )}
             </>
           )}
@@ -273,9 +366,15 @@ export default function InsuranceExportScreen() {
               </View>
             </View>
             <PrimaryButton
-              title={exporting ? "Generating PDF..." : "Export PDF"}
+              title={
+                estimatingCosts
+                  ? `Estimating costs (${costProgress.done}/${costProgress.total})...`
+                  : exporting
+                    ? "Generating PDF..."
+                    : "Export PDF"
+              }
               onPress={handleExport}
-              loading={exporting}
+              loading={exporting || estimatingCosts}
               disabled={includedItems.length === 0}
             />
           </View>
@@ -364,12 +463,37 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.textMuted,
   },
-  hint: {
-    fontSize: 11,
-    color: colors.textSubtle,
-    textAlign: "center",
+  explainerCard: {
+    backgroundColor: colors.brandLighter ?? "#f0f4ff",
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.brandLight ?? "#c7d2fe",
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
+  },
+  explainerTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  explainerBody: {
+    fontSize: 13,
+    color: colors.textMuted,
+    lineHeight: 19,
+  },
+  autoEstimateCard: {
+    backgroundColor: "#fffbeb",
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "#fde68a",
+    padding: spacing.md,
     marginTop: spacing.md,
-    lineHeight: 16,
+  },
+  autoEstimateText: {
+    fontSize: 13,
+    color: "#92400e",
+    lineHeight: 18,
   },
   bottomBar: {
     position: "absolute",

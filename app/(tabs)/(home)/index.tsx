@@ -1,8 +1,8 @@
 import { Stack, useFocusEffect, useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
-  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -245,7 +245,7 @@ export default function HomeDashboard() {
                 <Pressable
                   key={`${alert.recallId}-${alert.itemId}`}
                   onPress={() => {
-                    if (alert.url) Linking.openURL(alert.url);
+                    if (alert.url) WebBrowser.openBrowserAsync(alert.url);
                   }}
                   style={styles.recallRow}
                 >

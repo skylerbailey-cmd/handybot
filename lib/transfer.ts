@@ -62,6 +62,10 @@ export async function exportHomeBundle(
   }
   for (const item of inventory) {
     if (item.photoUri?.startsWith("file://")) photoUris.add(item.photoUri);
+    if (item.warrantyPhotoUri?.startsWith("file://"))
+      photoUris.add(item.warrantyPhotoUri);
+    if (item.receiptPhotoUri?.startsWith("file://"))
+      photoUris.add(item.receiptPhotoUri);
   }
 
   // Read photos and build the map
@@ -106,6 +110,8 @@ export async function exportHomeBundle(
   const exportInventory: HomeItem[] = inventory.map((item) => ({
     ...item,
     photoUri: rewrite(item.photoUri),
+    warrantyPhotoUri: rewrite(item.warrantyPhotoUri),
+    receiptPhotoUri: rewrite(item.receiptPhotoUri),
   }));
 
   const exportReminders: Reminder[] = reminders.map((r) => ({
@@ -237,6 +243,8 @@ export async function importHomeBundle(
     ...item,
     id: generateId(),
     photoUri: restoreUri(item.photoUri),
+    warrantyPhotoUri: restoreUri(item.warrantyPhotoUri),
+    receiptPhotoUri: restoreUri(item.receiptPhotoUri),
   }));
 
   const importedReminders: Reminder[] = bundle.reminders.map((r) => ({
@@ -295,6 +303,10 @@ export async function deleteAllHomeData(
   }
   for (const item of inventory) {
     if (item.photoUri?.startsWith("file://")) photoUris.add(item.photoUri);
+    if (item.warrantyPhotoUri?.startsWith("file://"))
+      photoUris.add(item.warrantyPhotoUri);
+    if (item.receiptPhotoUri?.startsWith("file://"))
+      photoUris.add(item.receiptPhotoUri);
   }
 
   // Delete photo files

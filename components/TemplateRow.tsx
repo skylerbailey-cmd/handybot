@@ -36,7 +36,7 @@ export default function TemplateRow({
         </Text>
         <Text style={styles.meta}>{formatFrequency(template.frequencyDays)}</Text>
       </View>
-      <View style={styles.action}>
+      <View style={[styles.action, alreadyEnabled && styles.actionAdded]}>
         {alreadyEnabled ? (
           <Text style={styles.addedText}>✓ Added</Text>
         ) : (
@@ -99,6 +99,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: radius.pill,
     backgroundColor: colors.brand,
+  },
+  actionAdded: {
+    backgroundColor: "#d1fae5",
   },
   addText: {
     fontSize: 12,

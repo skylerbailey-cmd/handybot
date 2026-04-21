@@ -21,7 +21,6 @@ export default function RepairStack() {
         name="issue/[id]"
         options={{ title: "Repair", headerBackTitle: "Back" }}
       />
-      <Stack.Screen name="history" options={{ title: "Recalls" }} />
       <Stack.Screen name="ask" options={{ title: "Ask HandyBot" }} />
       <Stack.Screen
         name="manual-repair"

@@ -1273,6 +1273,11 @@ const ANALYZE_ITEM_TOOL = {
         type: "string",
         description: "Single emoji that best represents this item.",
       },
+      suggested_room: {
+        type: "string",
+        description:
+          "Best guess for which room this item is typically found in. Use one of: Kitchen, Living Room, Master Bedroom, Bedroom, Bathroom, Basement, Garage, Attic, Laundry Room, Dining Room, Office, Outdoor, Utility Room, Hallway. Pick the most likely location based on the item type.",
+      },
       suggested_reminders: {
         type: "array",
         description:
@@ -1334,6 +1339,7 @@ export interface AnalyzedItem {
   purchaseDateHint?: string;
   warrantyYearsHint?: number;
   icon: string;
+  suggestedRoom?: string;
   suggestedReminders: Array<{
     title: string;
     description: string;
@@ -1415,6 +1421,7 @@ export async function analyzeHomeItem(args: {
     purchaseDateHint: raw.purchase_date_hint ? String(raw.purchase_date_hint).trim() : undefined,
     warrantyYearsHint: Number(raw.warranty_years_hint) || undefined,
     icon: String(raw.icon ?? "🏠").trim().slice(0, 4) || "🏠",
+    suggestedRoom: raw.suggested_room ? String(raw.suggested_room).trim() : undefined,
     suggestedReminders,
   };
 }
