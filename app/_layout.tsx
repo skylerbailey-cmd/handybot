@@ -81,6 +81,18 @@ export default function RootLayout() {
             name="login"
             options={{ presentation: "modal", animation: "slide_from_bottom" }}
           />
+          <Stack.Screen
+            name="confirm-email"
+            options={{ presentation: "modal", animation: "slide_from_bottom" }}
+          />
+          <Stack.Screen
+            name="forgot-password"
+            options={{ presentation: "modal", animation: "slide_from_bottom" }}
+          />
+          <Stack.Screen
+            name="reset-password"
+            options={{ headerShown: false }}
+          />
         </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>

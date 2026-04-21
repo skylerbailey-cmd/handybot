@@ -3,6 +3,7 @@ import { useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import PrimaryButton from "@/components/PrimaryButton";
-import { signIn, signUp } from "@/lib/auth";
+import { resendConfirmation, signIn, signUp } from "@/lib/auth";
 import { colors, radius, spacing } from "@/lib/theme";
 
 export default function LoginScreen() {
@@ -21,6 +22,9 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showResend, setShowResend] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendStatus, setResendStatus] = useState<string | null>(null);
 
   const isSignIn = mode === "sign_in";
 
@@ -31,19 +35,27 @@ export default function LoginScreen() {
       return;
     }
     setError(null);
+    setShowResend(false);
+    setResendStatus(null);
     setLoading(true);
     try {
-      const result = isSignIn
-        ? await signIn(trimmedEmail, password)
-        : await signUp(trimmedEmail, password);
-      if (result.error) {
-        setError(result.error);
-      } else {
-        // Success — go back to wherever the user came from (usually Settings)
-        if (router.canGoBack()) {
-          router.back();
+      if (isSignIn) {
+        const result = await signIn(trimmedEmail, password);
+        if (result.error) {
+          setError(result.error);
+          if (result.code === "email_not_confirmed") {
+            setShowResend(true);
+          }
         } else {
-          router.replace("/(tabs)/(settings)");
+          goBack();
+        }
+      } else {
+        const result = await signUp(trimmedEmail, password);
+        if (result.error) {
+          setError(result.error);
+        } else {
+          // Email confirmation is required — navigate to the confirm screen.
+          router.push({ pathname: "/confirm-email", params: { email: trimmedEmail } });
         }
       }
     } catch {
@@ -53,9 +65,38 @@ export default function LoginScreen() {
     }
   }
 
+  async function handleResendConfirmation() {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) return;
+    setResendLoading(true);
+    setResendStatus(null);
+    try {
+      const result = await resendConfirmation(trimmedEmail);
+      if (result.error) {
+        setResendStatus(result.error);
+      } else {
+        setResendStatus("Confirmation email sent. Check your inbox.");
+      }
+    } catch {
+      setResendStatus("Failed to resend. Try again later.");
+    } finally {
+      setResendLoading(false);
+    }
+  }
+
+  function goBack() {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(tabs)/(settings)");
+    }
+  }
+
   function toggleMode() {
     setMode(isSignIn ? "sign_up" : "sign_in");
     setError(null);
+    setShowResend(false);
+    setResendStatus(null);
   }
 
   return (
@@ -112,7 +153,32 @@ export default function LoginScreen() {
               returnKeyType="go"
             />
 
+            {isSignIn && (
+              <Pressable
+                onPress={() => router.push("/forgot-password")}
+                style={{ marginTop: spacing.sm }}
+              >
+                <Text style={styles.link}>Forgot password?</Text>
+              </Pressable>
+            )}
+
             {error && <Text style={styles.error}>{error}</Text>}
+
+            {showResend && (
+              <View style={{ marginTop: spacing.sm }}>
+                <PrimaryButton
+                  title={resendLoading ? "Sending..." : "Resend confirmation email"}
+                  onPress={handleResendConfirmation}
+                  loading={resendLoading}
+                  variant="secondary"
+                />
+                {resendStatus && (
+                  <Text style={[styles.error, { color: colors.textMuted }]}>
+                    {resendStatus}
+                  </Text>
+                )}
+              </View>
+            )}
 
             <PrimaryButton
               title={
@@ -144,13 +210,7 @@ export default function LoginScreen() {
 
           <PrimaryButton
             title="Skip for now"
-            onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace("/(tabs)/(home)");
-              }
-            }}
+            onPress={goBack}
             variant="secondary"
             disabled={loading}
             style={{ marginTop: spacing.sm }}
@@ -206,6 +266,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text,
     backgroundColor: colors.background,
+  },
+  link: {
+    fontSize: 13,
+    color: colors.brand,
+    fontWeight: "500",
   },
   error: {
     marginTop: spacing.md,
