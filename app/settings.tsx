@@ -11,8 +11,18 @@ import {
 } from "react-native";
 import PrimaryButton from "@/components/PrimaryButton";
 import { runInitialBackfill, type MigrateProgress } from "@/lib/cloud/migrate";
-import { scheduleTestNotification } from "@/lib/reminders";
+import {
+  restoreFromCloud,
+  type RestoreProgress,
+} from "@/lib/cloud/restore";
+import { getActiveHome } from "@/lib/homes";
 import { clearUser, ensureUser, wipeAllData } from "@/lib/storage";
+import {
+  deleteAllHomeData,
+  exportHomeBundle,
+  importHomeBundle,
+  type TransferProgress,
+} from "@/lib/transfer";
 import {
   hydrateSubscription,
   isCloudBackupEnabled,
@@ -22,23 +32,30 @@ import { isSupabaseConfigured } from "@/lib/supabase";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { User } from "@/lib/types";
 
-const TEST_NOTIFICATION_DELAY_SECONDS = 5;
 const SUPPORT_EMAIL = "support@grnd-lab.com";
 const APP_VERSION = "0.1";
 
 export default function SettingsScreen() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const [testPending, setTestPending] = useState(false);
   const [cloudBackup, setCloudBackup] = useState<boolean>(isCloudBackupEnabled());
   const [backupBusy, setBackupBusy] = useState(false);
   const [backupStatus, setBackupStatus] = useState<string | null>(null);
+  const [restoreBusy, setRestoreBusy] = useState(false);
+  const [restoreStatus, setRestoreStatus] = useState<string | null>(null);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportStatus, setExportStatus] = useState<string | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [homeName, setHomeName] = useState("this home");
 
   useEffect(() => {
     ensureUser().then(setUser);
-    // Refresh the toggle from AsyncStorage in case it was hydrated after
-    // this screen first rendered.
     hydrateSubscription().then(setCloudBackup);
+    getActiveHome().then((h) => {
+      if (h) setHomeName(h.name);
+    });
   }, []);
 
   async function handleToggleCloudBackup() {
@@ -96,28 +113,132 @@ export default function SettingsScreen() {
     }
   }
 
-  async function handleTestNotification() {
-    if (testPending) return;
-    setTestPending(true);
-    try {
-      const ok = await scheduleTestNotification(TEST_NOTIFICATION_DELAY_SECONDS);
-      if (!ok) {
-        Alert.alert(
-          "Notifications disabled",
-          "HandyBot needs notification permission to ping you. Enable notifications for HandyBot in your device Settings and try again."
-        );
-        return;
-      }
+  async function handleRestoreFromCloud() {
+    if (restoreBusy || !cloudBackup) return;
+    if (!isSupabaseConfigured()) {
       Alert.alert(
-        "Test notification scheduled",
-        `You'll see a notification in ${TEST_NOTIFICATION_DELAY_SECONDS} seconds. Put HandyBot in the background (or lock your phone) to see it pop up.`
+        "Cloud backup unavailable",
+        "Supabase isn't configured in this build."
+      );
+      return;
+    }
+
+    setRestoreBusy(true);
+    setRestoreStatus("Starting restore…");
+    try {
+      const { itemsRestored } = await restoreFromCloud(
+        (p: RestoreProgress) => {
+          setRestoreStatus(p.message);
+        }
+      );
+      setRestoreStatus(
+        itemsRestored > 0
+          ? `Restore complete — ${itemsRestored} items synced from cloud.`
+          : "Everything is already up to date."
       );
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Something went wrong";
-      Alert.alert("Could not schedule", msg);
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setRestoreStatus(`Restore failed: ${msg}`);
+      Alert.alert("Restore failed", msg);
     } finally {
-      setTestPending(false);
+      setRestoreBusy(false);
     }
+  }
+
+  async function handleExportHome() {
+    if (exportBusy) return;
+    setExportBusy(true);
+    setExportStatus(null);
+    try {
+      await exportHomeBundle((p: TransferProgress) => {
+        setExportStatus(p.message);
+      });
+      setExportStatus("Export complete.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Export failed";
+      if (!msg.includes("cancelled") && !msg.includes("canceled")) {
+        setExportStatus(`Export failed: ${msg}`);
+        Alert.alert("Export failed", msg);
+      } else {
+        setExportStatus(null);
+      }
+    } finally {
+      setExportBusy(false);
+    }
+  }
+
+  async function handleImportHome() {
+    if (importBusy) return;
+    setImportBusy(true);
+    setImportStatus(null);
+    try {
+      const { itemsImported } = await importHomeBundle(
+        (p: TransferProgress) => {
+          setImportStatus(p.message);
+        }
+      );
+      if (itemsImported > 0) {
+        setImportStatus(
+          `Imported ${itemsImported} items into a new home. Switch to it from the home picker.`
+        );
+        Alert.alert(
+          "Import complete",
+          `${itemsImported} items imported into a new home. You've been switched to it automatically.`
+        );
+      } else {
+        setImportStatus(null);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Import failed";
+      setImportStatus(`Import failed: ${msg}`);
+      Alert.alert("Import failed", msg);
+    } finally {
+      setImportBusy(false);
+    }
+  }
+
+  function handleDeleteHomeData() {
+    Alert.alert(
+      `Delete all data for "${homeName}"?`,
+      "This will permanently remove all repairs, inventory items, reminders, and photos for this home. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete everything",
+          style: "destructive",
+          onPress: () => {
+            Alert.alert(
+              "Last chance",
+              `All data for "${homeName}" will be permanently deleted.`,
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Delete permanently",
+                  style: "destructive",
+                  onPress: async () => {
+                    setDeleteBusy(true);
+                    try {
+                      await deleteAllHomeData();
+                      Alert.alert(
+                        "Data deleted",
+                        `All data for "${homeName}" has been removed.`
+                      );
+                      router.replace("/");
+                    } catch (err) {
+                      const msg =
+                        err instanceof Error ? err.message : "Delete failed";
+                      Alert.alert("Delete failed", msg);
+                    } finally {
+                      setDeleteBusy(false);
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
   }
 
   async function handleContactSupport() {
@@ -224,6 +345,62 @@ export default function SettingsScreen() {
           variant={cloudBackup ? "secondary" : "primary"}
           style={{ marginTop: spacing.md }}
         />
+        {cloudBackup && (
+          <>
+            {restoreStatus && (
+              <Text style={[styles.cardBody, { marginTop: spacing.sm }]}>
+                {restoreStatus}
+              </Text>
+            )}
+            <PrimaryButton
+              title={restoreBusy ? "Restoring…" : "Restore from cloud"}
+              onPress={handleRestoreFromCloud}
+              loading={restoreBusy}
+              variant="secondary"
+              style={{ marginTop: spacing.sm }}
+            />
+          </>
+        )}
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Home transfer</Text>
+        <Text style={styles.cardBody}>
+          Moving? Export your home data for the new owner, or import data from
+          a previous owner. Exports include repairs, inventory, reminders, and
+          photos.
+        </Text>
+        {exportStatus && (
+          <Text style={[styles.cardBody, { marginTop: spacing.sm }]}>
+            {exportStatus}
+          </Text>
+        )}
+        <PrimaryButton
+          title={exportBusy ? "Exporting..." : "Export home data"}
+          onPress={handleExportHome}
+          loading={exportBusy}
+          variant="secondary"
+          style={{ marginTop: spacing.md }}
+        />
+        {importStatus && (
+          <Text style={[styles.cardBody, { marginTop: spacing.sm }]}>
+            {importStatus}
+          </Text>
+        )}
+        <PrimaryButton
+          title={importBusy ? "Importing..." : "Import home data"}
+          onPress={handleImportHome}
+          loading={importBusy}
+          variant="secondary"
+          style={{ marginTop: spacing.sm }}
+        />
+        <View style={styles.transferDivider} />
+        <PrimaryButton
+          title={deleteBusy ? "Deleting..." : `Delete all "${homeName}" data`}
+          onPress={handleDeleteHomeData}
+          loading={deleteBusy}
+          variant="danger"
+        />
       </View>
 
       <View style={styles.card}>
@@ -242,26 +419,6 @@ export default function SettingsScreen() {
             />
           </View>
         )}
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Notifications</Text>
-        <Text style={styles.cardBody}>
-          HandyBot uses local notifications to remind you about recurring
-          home-maintenance tasks. Tap below to make sure they&apos;re working
-          — you&apos;ll get a test ping in a few seconds.
-        </Text>
-        <PrimaryButton
-          title={
-            testPending
-              ? "Scheduling..."
-              : `Send test notification (${TEST_NOTIFICATION_DELAY_SECONDS}s)`
-          }
-          onPress={handleTestNotification}
-          loading={testPending}
-          variant="secondary"
-          style={{ marginTop: spacing.md }}
-        />
       </View>
 
       <View style={styles.card}>
@@ -346,6 +503,11 @@ const styles = StyleSheet.create({
   rowValue: {
     fontSize: 13,
     color: colors.text,
+  },
+  transferDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: spacing.md,
   },
   footer: {
     textAlign: "center",

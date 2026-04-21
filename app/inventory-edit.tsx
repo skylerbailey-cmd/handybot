@@ -16,6 +16,7 @@ import PrimaryButton from "@/components/PrimaryButton";
 import {
   addHomeItem,
   loadInventory,
+  removeHomeItem,
   updateHomeItem,
 } from "@/lib/homeData";
 import { generateId } from "@/lib/storage";
@@ -47,12 +48,17 @@ export default function InventoryEditScreen() {
   const isNew = !params.itemId;
 
   const [name, setName] = useState("");
+  const [make, setMake] = useState("");
+  const [model, setModel] = useState("");
+  const [serialNumber, setSerialNumber] = useState("");
+  const [yearInstalled, setYearInstalled] = useState("");
   const [conditionNotes, setConditionNotes] = useState("");
   const [estimatedAgeYears, setEstimatedAgeYears] = useState("");
   const [typicalLifespanYears, setTypicalLifespanYears] = useState("");
   const [condition, setCondition] = useState<ItemCondition>("fair");
   const [photoUri, setPhotoUri] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
+  const [photoFailed, setPhotoFailed] = useState(false);
 
   // Fields we keep from analysis but don't expose for editing
   const [category, setCategory] = useState("other");
@@ -73,6 +79,10 @@ export default function InventoryEditScreen() {
         if (found) {
           setExistingItem(found);
           setName(found.name);
+          setMake(found.make ?? "");
+          setModel(found.model ?? "");
+          setSerialNumber(found.serialNumber ?? "");
+          setYearInstalled(found.yearInstalled ? String(found.yearInstalled) : "");
           setConditionNotes(found.conditionNotes);
           setEstimatedAgeYears(String(found.estimatedAgeYears));
           setTypicalLifespanYears(String(found.typicalLifespanYears));
@@ -90,6 +100,10 @@ export default function InventoryEditScreen() {
       try {
         const data = JSON.parse(params.analyzedData);
         setName(data.name ?? "");
+        setMake(data.make ?? "");
+        setModel(data.model ?? "");
+        setSerialNumber(data.serialNumber ?? "");
+        setYearInstalled(data.yearInstalled ? String(data.yearInstalled) : "");
         setConditionNotes(data.conditionNotes ?? "");
         setEstimatedAgeYears(String(data.estimatedAgeYears ?? 0));
         setTypicalLifespanYears(String(data.typicalLifespanYears ?? 0));
@@ -119,6 +133,8 @@ export default function InventoryEditScreen() {
       const ageNum = Math.max(0, Number(estimatedAgeYears) || 0);
       const lifespanNum = Math.max(1, Number(typicalLifespanYears) || 1);
 
+      const yearNum = Number(yearInstalled) || 0;
+
       if (isNew) {
         const item: HomeItem = {
           id: generateId(),
@@ -127,6 +143,10 @@ export default function InventoryEditScreen() {
           icon,
           room,
           photoUri,
+          make: make.trim() || undefined,
+          model: model.trim() || undefined,
+          serialNumber: serialNumber.trim() || undefined,
+          yearInstalled: yearNum || undefined,
           estimatedAgeYears: ageNum,
           typicalLifespanYears: lifespanNum,
           condition,
@@ -140,6 +160,10 @@ export default function InventoryEditScreen() {
       } else if (params.itemId) {
         await updateHomeItem(params.itemId, {
           name: name.trim(),
+          make: make.trim() || undefined,
+          model: model.trim() || undefined,
+          serialNumber: serialNumber.trim() || undefined,
+          yearInstalled: yearNum || undefined,
           conditionNotes: conditionNotes.trim(),
           estimatedAgeYears: ageNum,
           typicalLifespanYears: lifespanNum,
@@ -159,6 +183,10 @@ export default function InventoryEditScreen() {
     saving,
     isNew,
     name,
+    make,
+    model,
+    serialNumber,
+    yearInstalled,
     category,
     icon,
     room,
@@ -188,9 +216,20 @@ export default function InventoryEditScreen() {
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
         >
-          {photoUri && (
-            <Image source={{ uri: photoUri }} style={styles.photo} />
-          )}
+          {photoUri && !photoFailed ? (
+            <Image
+              source={{ uri: photoUri }}
+              style={styles.photo}
+              onError={() => setPhotoFailed(true)}
+            />
+          ) : photoUri && photoFailed ? (
+            <View style={styles.photoPlaceholder}>
+              <Text style={{ fontSize: 32 }}>{icon || "📷"}</Text>
+              <Text style={{ fontSize: 12, color: colors.textSubtle }}>
+                Photo unavailable
+              </Text>
+            </View>
+          ) : null}
 
           {/* Name / Title */}
           <View style={styles.card}>
@@ -202,6 +241,58 @@ export default function InventoryEditScreen() {
               placeholderTextColor={colors.textSubtle}
               style={styles.input}
             />
+          </View>
+
+          {/* Make / Model / Serial / Year */}
+          <View style={styles.card}>
+            <Text style={styles.label}>Details</Text>
+            <View style={styles.detailRow}>
+              <View style={styles.detailField}>
+                <Text style={styles.detailLabel}>Brand</Text>
+                <TextInput
+                  value={make}
+                  onChangeText={setMake}
+                  placeholder="e.g. GE, Rheem"
+                  placeholderTextColor={colors.textSubtle}
+                  style={styles.input}
+                />
+              </View>
+              <View style={styles.detailField}>
+                <Text style={styles.detailLabel}>Model</Text>
+                <TextInput
+                  value={model}
+                  onChangeText={setModel}
+                  placeholder="e.g. GDF535"
+                  placeholderTextColor={colors.textSubtle}
+                  style={styles.input}
+                />
+              </View>
+            </View>
+            <View style={styles.detailRow}>
+              <View style={styles.detailField}>
+                <Text style={styles.detailLabel}>Serial Number</Text>
+                <TextInput
+                  value={serialNumber}
+                  onChangeText={setSerialNumber}
+                  placeholder="If known"
+                  placeholderTextColor={colors.textSubtle}
+                  style={styles.input}
+                  autoCapitalize="characters"
+                />
+              </View>
+              <View style={styles.detailFieldSmall}>
+                <Text style={styles.detailLabel}>Year</Text>
+                <TextInput
+                  value={yearInstalled}
+                  onChangeText={setYearInstalled}
+                  placeholder="e.g. 2019"
+                  placeholderTextColor={colors.textSubtle}
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  style={styles.input}
+                />
+              </View>
+            </View>
           </View>
 
           {/* Description / Condition Notes */}
@@ -296,6 +387,31 @@ export default function InventoryEditScreen() {
             disabled={!canSave}
             loading={saving}
           />
+
+          {!isNew && params.itemId && (
+            <Pressable
+              onPress={() => {
+                Alert.alert(
+                  "Delete item?",
+                  `"${name}" will be permanently removed from your inventory.`,
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Delete",
+                      style: "destructive",
+                      onPress: async () => {
+                        await removeHomeItem(params.itemId!);
+                        router.back();
+                      },
+                    },
+                  ]
+                );
+              }}
+              style={styles.deleteBtn}
+            >
+              <Text style={styles.deleteBtnText}>Delete Item</Text>
+            </Pressable>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </>
@@ -313,6 +429,15 @@ const styles = StyleSheet.create({
     height: 180,
     borderRadius: radius.lg,
     backgroundColor: colors.border,
+  },
+  photoPlaceholder: {
+    width: "100%",
+    height: 180,
+    borderRadius: radius.lg,
+    backgroundColor: "#f5f5f4",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
   },
   card: {
     backgroundColor: colors.surface,
@@ -388,9 +513,36 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textMuted,
   },
+  detailRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  detailField: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  detailFieldSmall: {
+    width: 100,
+    gap: spacing.xs,
+  },
+  detailLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.textMuted,
+  },
   tipText: {
     fontSize: 13,
     color: colors.textMuted,
     lineHeight: 18,
+  },
+  deleteBtn: {
+    alignItems: "center",
+    paddingVertical: spacing.md,
+    marginTop: spacing.sm,
+  },
+  deleteBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.danger,
   },
 });

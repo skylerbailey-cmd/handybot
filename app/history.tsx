@@ -2,6 +2,7 @@ import { Link, Stack, useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
   Image,
+  Modal,
   Pressable,
   ScrollView,
   Share,
@@ -55,32 +56,90 @@ export default function HistoryScreen() {
     };
   }, [issues]);
 
+  const [showExportPicker, setShowExportPicker] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [exportFields, setExportFields] = useState({
+    status: true,
+    difficulty: true,
+    time: true,
+    steps: true,
+    savings: true,
+    summary: true,
+  });
+
+  function toggleExportField(field: keyof typeof exportFields) {
+    setExportFields((prev) => ({ ...prev, [field]: !prev[field] }));
+  }
+
+  function openExportPicker() {
+    // Pre-select all items
+    setSelectedIds(new Set(sortedByDate.map((i) => i.id)));
+    setShowExportPicker(true);
+  }
+
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === sortedByDate.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(sortedByDate.map((i) => i.id)));
+    }
+  }
+
   async function handleExport() {
+    const selected = sortedByDate.filter((i) => selectedIds.has(i.id));
+    if (selected.length === 0) return;
+
+    const finished = selected.filter(
+      (i) => i.status === "completed" || i.status === "verified"
+    );
+    const totalSaved = finished.reduce(
+      (s, i) => s + (i.plan.estimatedSavingsUsd ?? 0),
+      0
+    );
+
     const lines: string[] = [];
     lines.push("HANDYBOT — HOME MAINTENANCE HISTORY");
     lines.push(`Exported: ${new Date().toLocaleDateString()}`);
-    lines.push(`Total repairs: ${stats.total}`);
-    lines.push(`Completed: ${stats.finished}`);
-    lines.push(`Total saved: ${formatMoney(stats.totalSaved)}`);
+    lines.push(`Repairs included: ${selected.length}`);
+    if (exportFields.status) lines.push(`Completed: ${finished.length}`);
+    if (exportFields.savings)
+      lines.push(`Total saved: ${formatMoney(totalSaved)}`);
     lines.push("");
 
-    for (const issue of sortedByDate) {
+    for (const issue of selected) {
       const date = new Date(issue.createdAt).toLocaleDateString();
-      const stepsDone = issue.plan.steps.filter((s) => s.completed).length;
       lines.push("---");
       lines.push(`${issue.title} (${date})`);
-      lines.push(`Status: ${issue.status}`);
-      lines.push(
-        `Difficulty: ${issue.plan.difficulty} · Time: ${formatDuration(issue.plan.estimatedMinutes)}`
-      );
-      lines.push(`Steps: ${stepsDone}/${issue.plan.steps.length}`);
-      if (issue.plan.estimatedSavingsUsd) {
+      if (exportFields.status) lines.push(`Status: ${issue.status}`);
+      if (exportFields.difficulty || exportFields.time) {
+        const parts: string[] = [];
+        if (exportFields.difficulty)
+          parts.push(`Difficulty: ${issue.plan.difficulty}`);
+        if (exportFields.time)
+          parts.push(`Time: ${formatDuration(issue.plan.estimatedMinutes)}`);
+        lines.push(parts.join(" · "));
+      }
+      if (exportFields.steps) {
+        const stepsDone = issue.plan.steps.filter((s) => s.completed).length;
+        lines.push(`Steps: ${stepsDone}/${issue.plan.steps.length}`);
+      }
+      if (exportFields.savings && issue.plan.estimatedSavingsUsd) {
         lines.push(`Saved: ${formatMoney(issue.plan.estimatedSavingsUsd)}`);
       }
-      lines.push(`Summary: ${issue.summary}`);
+      if (exportFields.summary) lines.push(`Summary: ${issue.summary}`);
       lines.push("");
     }
 
+    setShowExportPicker(false);
     await Share.share({
       message: lines.join("\n"),
       title: "HandyBot Maintenance History",
@@ -132,7 +191,7 @@ export default function HistoryScreen() {
             </View>
             <PrimaryButton
               title="Export history"
-              onPress={handleExport}
+              onPress={openExportPicker}
               variant="secondary"
               style={{ marginTop: spacing.md }}
             />
@@ -236,6 +295,137 @@ export default function HistoryScreen() {
         </>
       )}
     </ScrollView>
+
+      <Modal
+        visible={showExportPicker}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowExportPicker(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Pressable
+              onPress={() => setShowExportPicker(false)}
+              hitSlop={10}
+            >
+              <Text style={styles.modalCancel}>Cancel</Text>
+            </Pressable>
+            <Text style={styles.modalTitle}>Export History</Text>
+            <View style={{ width: 50 }} />
+          </View>
+
+          <ScrollView contentContainerStyle={styles.modalList}>
+            <Text style={styles.modalSectionLabel}>Include in export</Text>
+            <View style={styles.fieldToggles}>
+              {(
+                [
+                  { key: "status", label: "Status" },
+                  { key: "difficulty", label: "Difficulty" },
+                  { key: "time", label: "Time" },
+                  { key: "steps", label: "Steps" },
+                  { key: "savings", label: "Savings" },
+                  { key: "summary", label: "Summary" },
+                ] as const
+              ).map((f) => {
+                const on = exportFields[f.key];
+                return (
+                  <Pressable
+                    key={f.key}
+                    onPress={() => toggleExportField(f.key)}
+                    style={[
+                      styles.fieldChip,
+                      on && styles.fieldChipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.fieldChipText,
+                        on && styles.fieldChipTextActive,
+                      ]}
+                    >
+                      {f.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={styles.modalDivider} />
+
+            <View style={styles.modalSectionHeader}>
+              <Text style={styles.modalSectionLabel}>Repairs</Text>
+              <Pressable onPress={toggleSelectAll} hitSlop={10}>
+                <Text style={styles.modalSelectAll}>
+                  {selectedIds.size === sortedByDate.length
+                    ? "Deselect all"
+                    : "Select all"}
+                </Text>
+              </Pressable>
+            </View>
+            {sortedByDate.map((issue) => {
+              const checked = selectedIds.has(issue.id);
+              const date = new Date(issue.createdAt).toLocaleDateString(
+                "en-US",
+                { month: "short", day: "numeric", year: "numeric" }
+              );
+              return (
+                <Pressable
+                  key={issue.id}
+                  onPress={() => toggleSelected(issue.id)}
+                  style={[
+                    styles.modalRow,
+                    checked && styles.modalRowSelected,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.checkbox,
+                      checked && styles.checkboxChecked,
+                    ]}
+                  >
+                    {checked && (
+                      <Text style={styles.checkmark}>✓</Text>
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.modalRowTitle} numberOfLines={1}>
+                      {issue.title}
+                    </Text>
+                    <Text style={styles.modalRowMeta}>
+                      {date} · {issue.plan.difficulty}
+                      {(issue.plan.estimatedSavingsUsd ?? 0) > 0
+                        ? ` · ${formatMoney(issue.plan.estimatedSavingsUsd)} saved`
+                        : ""}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.modalStatusDot,
+                      issue.status === "verified"
+                        ? styles.dotVerified
+                        : issue.status === "completed"
+                          ? styles.dotCompleted
+                          : styles.dotOngoing,
+                    ]}
+                  />
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          <View style={styles.modalFooter}>
+            <PrimaryButton
+              title={
+                selectedIds.size === 0
+                  ? "Select repairs to export"
+                  : `Export ${selectedIds.size} repair${selectedIds.size !== 1 ? "s" : ""}`
+              }
+              onPress={handleExport}
+              disabled={selectedIds.size === 0}
+            />
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -463,5 +653,141 @@ const styles = StyleSheet.create({
   },
   statusOngoingText: {
     color: colors.brandDark,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  modalCancel: {
+    fontSize: 15,
+    color: colors.textMuted,
+    fontWeight: "600",
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: colors.text,
+  },
+  modalSelectAll: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.brand,
+  },
+  modalSectionLabel: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: colors.text,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  modalSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  modalDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: spacing.xs,
+  },
+  fieldToggles: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  fieldChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.pill,
+    backgroundColor: "#f5f5f4",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  fieldChipActive: {
+    backgroundColor: colors.brandLight,
+    borderColor: colors.brand,
+  },
+  fieldChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.textMuted,
+  },
+  fieldChipTextActive: {
+    color: colors.brandDark,
+  },
+  modalList: {
+    padding: spacing.lg,
+    paddingBottom: spacing.xxl * 3,
+    gap: spacing.sm,
+  },
+  modalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+  },
+  modalRowSelected: {
+    borderColor: colors.brand,
+    backgroundColor: colors.brandLighter,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: radius.sm,
+    borderWidth: 2,
+    borderColor: colors.borderStrong,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxChecked: {
+    backgroundColor: colors.brand,
+    borderColor: colors.brand,
+  },
+  checkmark: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "800",
+    marginTop: -1,
+  },
+  modalRowTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  modalRowMeta: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  modalStatusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  modalFooter: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: spacing.lg,
+    paddingBottom: spacing.xxl,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderColor: colors.border,
   },
 });

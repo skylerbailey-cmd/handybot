@@ -1217,6 +1217,26 @@ const ANALYZE_ITEM_TOOL = {
         description: "2-4 short maintenance tips specific to this item.",
         items: { type: "string" },
       },
+      make: {
+        type: "string",
+        description:
+          "Manufacturer or brand name if visible or identifiable, e.g. 'GE', 'Rheem', 'Carrier', 'LG'. Leave empty string if unknown.",
+      },
+      model: {
+        type: "string",
+        description:
+          "Model name or number if visible on a label/sticker, e.g. 'Profile PFE28KYNFS'. Leave empty string if unknown.",
+      },
+      serial_number: {
+        type: "string",
+        description:
+          "Serial number if visible on a label or sticker. Leave empty string if not visible.",
+      },
+      year_installed: {
+        type: "integer",
+        description:
+          "Year the item was manufactured or installed if visible on a date sticker, rating plate, or identifiable from the model. Use 0 if unknown.",
+      },
       icon: {
         type: "string",
         description: "Single emoji that best represents this item.",
@@ -1270,6 +1290,10 @@ You MUST call the analyze_home_item tool. Do not reply with plain text.`;
 export interface AnalyzedItem {
   name: string;
   category: string;
+  make: string;
+  model: string;
+  serialNumber: string;
+  yearInstalled: number;
   estimatedAgeYears: number;
   typicalLifespanYears: number;
   condition: "good" | "fair" | "poor" | "replace_soon";
@@ -1343,6 +1367,10 @@ export async function analyzeHomeItem(args: {
   return {
     name: String(raw.name ?? "Unknown item").trim(),
     category: String(raw.category ?? "other").trim(),
+    make: String(raw.make ?? "").trim(),
+    model: String(raw.model ?? "").trim(),
+    serialNumber: String(raw.serial_number ?? "").trim(),
+    yearInstalled: Number(raw.year_installed) || 0,
     estimatedAgeYears: Number(raw.estimated_age_years) || 0,
     typicalLifespanYears: Number(raw.typical_lifespan_years) || 0,
     condition,

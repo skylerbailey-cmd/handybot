@@ -123,7 +123,14 @@ export async function clearUser(): Promise<void> {
 }
 
 export async function wipeAllData(): Promise<void> {
-  await AsyncStorage.multiRemove([issuesKey(), USER_KEY]);
+  const prefix = storagePrefix();
+  await AsyncStorage.multiRemove([
+    issuesKey(),
+    prefix + "reminders",
+    prefix + "inventory",
+    prefix + "ask_messages",
+    USER_KEY,
+  ]);
   const dir = `${FileSystem.documentDirectory}handybot/`;
   try {
     await FileSystem.deleteAsync(dir, { idempotent: true });

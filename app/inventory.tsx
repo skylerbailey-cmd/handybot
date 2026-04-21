@@ -5,6 +5,7 @@ import {
   Alert,
   Animated,
   Image,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -30,6 +31,7 @@ import {
   removeHomeItem,
 } from "@/lib/homeData";
 import { promptAndPickImage, readImageAsBase64 } from "@/lib/image";
+import { checkForRecalls, type RecallAlert } from "@/lib/recalls";
 import { formatFrequency, loadReminders } from "@/lib/reminders";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { HomeItem, Reminder } from "@/lib/types";
@@ -67,6 +69,8 @@ export default function InventoryScreen() {
   const [items, setItems] = useState<HomeItem[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [adding, setAdding] = useState(false);
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+  const [recallAlerts, setRecallAlerts] = useState<RecallAlert[]>([]);
   const [expandedReminderSections, setExpandedReminderSections] = useState<
     Set<string>
   >(new Set());
@@ -102,6 +106,15 @@ export default function InventoryScreen() {
     ]);
     setItems(loadedItems);
     setReminders(loadedReminders);
+
+    // Check for CPSC recalls in the background (cached for 24h)
+    if (loadedItems.length > 0) {
+      checkForRecalls(loadedItems)
+        .then(setRecallAlerts)
+        .catch(() => {
+          /* non-blocking — recall check is best-effort */
+        });
+    }
   }, []);
 
   useFocusEffect(
@@ -111,6 +124,17 @@ export default function InventoryScreen() {
   );
 
   const attention = useMemo(() => getItemsNeedingAttention(items), [items]);
+
+  // Group recall alerts by item ID for per-card badges
+  const recallsByItem = useMemo(() => {
+    const map = new Map<string, RecallAlert[]>();
+    for (const alert of recallAlerts) {
+      const list = map.get(alert.itemId) ?? [];
+      list.push(alert);
+      map.set(alert.itemId, list);
+    }
+    return map;
+  }, [recallAlerts]);
 
   // Track which reminders have already been added from inventory items
   const addedReminderTitles = useMemo(() => {
@@ -282,6 +306,49 @@ export default function InventoryScreen() {
           </View>
         )}
 
+        {recallAlerts.length > 0 && (
+          <View style={styles.recallCard}>
+            <Text style={styles.recallCardTitle}>
+              ⚠ {recallAlerts.length} recall{recallAlerts.length !== 1 ? "s" : ""} found
+            </Text>
+            <Text style={styles.recallCardSubtitle}>
+              CPSC has issued safety recalls that may affect items in your inventory.
+            </Text>
+            {recallAlerts.map((alert) => {
+              const item = items.find((i) => i.id === alert.itemId);
+              return (
+                <Pressable
+                  key={`${alert.recallId}-${alert.itemId}`}
+                  onPress={() => {
+                    if (alert.url) Linking.openURL(alert.url);
+                  }}
+                  style={styles.recallRow}
+                >
+                  <Text style={styles.recallRowIcon}>
+                    {item?.icon ?? "⚠"}
+                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.recallRowItem} numberOfLines={1}>
+                      {item?.name ?? "Unknown item"}
+                    </Text>
+                    <Text style={styles.recallRowTitle} numberOfLines={2}>
+                      {alert.title}
+                    </Text>
+                    {alert.hazard ? (
+                      <Text style={styles.recallRowHazard} numberOfLines={1}>
+                        {alert.hazard}
+                      </Text>
+                    ) : null}
+                    <Text style={styles.recallRowLink}>
+                      View on CPSC.gov →
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
         {grouped.map(([category, categoryItems]) => (
           <View key={category} style={styles.section}>
             <Text style={styles.sectionTitle}>
@@ -299,11 +366,23 @@ export default function InventoryScreen() {
                     pressed && { opacity: 0.9 },
                   ]}
                 >
-                  {item.photoUri && (
+                  {item.photoUri && !failedImages.has(item.id) ? (
                     <Image
                       source={{ uri: item.photoUri }}
                       style={styles.itemPhoto}
+                      onError={() =>
+                        setFailedImages((prev) => new Set(prev).add(item.id))
+                      }
                     />
+                  ) : !item.photoUri ? null : (
+                    <View style={styles.itemPhotoPlaceholder}>
+                      <Text style={styles.itemPhotoPlaceholderText}>
+                        {item.icon || "📷"}
+                      </Text>
+                      <Text style={styles.itemPhotoPlaceholderHint}>
+                        Photo unavailable
+                      </Text>
+                    </View>
                   )}
                   <View style={styles.itemBody}>
                     <View style={styles.itemHeader}>
@@ -324,9 +403,28 @@ export default function InventoryScreen() {
                         </Text>
                       </View>
                     </View>
+                    {recallsByItem.has(item.id) && (
+                      <Pressable
+                        onPress={() => {
+                          const alert = recallsByItem.get(item.id)![0];
+                          if (alert.url) Linking.openURL(alert.url);
+                        }}
+                        style={styles.recallBadge}
+                      >
+                        <Text style={styles.recallBadgeText}>
+                          ⚠ RECALL
+                        </Text>
+                      </Pressable>
+                    )}
                     <Text style={styles.itemNotes} numberOfLines={2}>
                       {item.conditionNotes}
                     </Text>
+                    {(item.make || item.model) && (
+                      <Text style={styles.itemSpecText} numberOfLines={1}>
+                        {[item.make, item.model].filter(Boolean).join(" ")}
+                        {item.yearInstalled ? ` (${item.yearInstalled})` : ""}
+                      </Text>
+                    )}
                     <View style={styles.itemMeta}>
                       <Text style={styles.itemMetaText}>
                         ~{item.estimatedAgeYears}yr old
@@ -574,6 +672,21 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 140,
   },
+  itemPhotoPlaceholder: {
+    width: "100%",
+    height: 140,
+    backgroundColor: "#f5f5f4",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  itemPhotoPlaceholderText: {
+    fontSize: 32,
+  },
+  itemPhotoPlaceholderHint: {
+    fontSize: 11,
+    color: colors.textSubtle,
+  },
   itemBody: {
     padding: spacing.md,
     gap: spacing.xs + 2,
@@ -605,6 +718,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textMuted,
     lineHeight: 18,
+  },
+  itemSpecText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.textMuted,
   },
   itemMeta: {
     flexDirection: "row",
@@ -784,5 +902,73 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSubtle,
     marginTop: spacing.xs,
+  },
+  recallCard: {
+    backgroundColor: "#fef2f2",
+    borderWidth: 1,
+    borderColor: "#fca5a5",
+    borderRadius: radius.lg,
+    padding: spacing.md + 2,
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  recallCardTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#991b1b",
+  },
+  recallCardSubtitle: {
+    fontSize: 12,
+    color: "#b91c1c",
+    lineHeight: 16,
+  },
+  recallRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderColor: "#fecaca",
+  },
+  recallRowIcon: {
+    fontSize: 20,
+    marginTop: 2,
+  },
+  recallRowItem: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#991b1b",
+  },
+  recallRowTitle: {
+    fontSize: 12,
+    color: "#7f1d1d",
+    lineHeight: 16,
+    marginTop: 1,
+  },
+  recallRowHazard: {
+    fontSize: 11,
+    color: "#b91c1c",
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  recallRowLink: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#dc2626",
+    marginTop: 4,
+  },
+  recallBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#fee2e2",
+    borderWidth: 1,
+    borderColor: "#fca5a5",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    marginTop: 2,
+  },
+  recallBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#dc2626",
   },
 });

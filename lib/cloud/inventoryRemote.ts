@@ -34,6 +34,10 @@ export async function pushInventory(args: {
       condition_notes: i.conditionNotes,
       maintenance_tips: i.maintenanceTips,
       suggested_reminders: i.suggestedReminders ?? [],
+      make: i.make ?? null,
+      model: i.model ?? null,
+      serial_number: i.serialNumber ?? null,
+      year_installed: i.yearInstalled ?? null,
       created_at: i.createdAt,
       updated_at: i.updatedAt,
     }));

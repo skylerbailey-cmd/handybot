@@ -36,6 +36,7 @@ import { colors, radius, spacing } from "@/lib/theme";
 import type { MaintenanceTemplate, Reminder } from "@/lib/types";
 
 type TabKey = "active" | "suggested";
+type GroupBy = "status" | "category";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -46,6 +47,7 @@ export default function RemindersScreen() {
   const [tab, setTab] = useState<TabKey>("active");
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const [groupBy, setGroupBy] = useState<GroupBy>("status");
 
   const refresh = useCallback(async () => {
     setReminders(await loadReminders());
@@ -208,6 +210,8 @@ export default function RemindersScreen() {
         <ActiveList
           reminders={reminders}
           highlightedId={highlightedId}
+          groupBy={groupBy}
+          onGroupByChange={setGroupBy}
           onToggle={handleToggle}
           onDelete={handleDelete}
           onMarkDone={handleMarkDone}
@@ -228,6 +232,8 @@ export default function RemindersScreen() {
 function ActiveList({
   reminders,
   highlightedId,
+  groupBy,
+  onGroupByChange,
   onToggle,
   onDelete,
   onMarkDone,
@@ -237,6 +243,8 @@ function ActiveList({
 }: {
   reminders: Reminder[] | null;
   highlightedId: string | null;
+  groupBy: GroupBy;
+  onGroupByChange: (g: GroupBy) => void;
   onToggle: (r: Reminder, enabled: boolean) => void;
   onDelete: (r: Reminder) => void;
   onMarkDone: (r: Reminder) => void;
@@ -272,7 +280,10 @@ function ActiveList({
     );
   }
 
-  const groups = groupReminders(reminders);
+  const groups =
+    groupBy === "status"
+      ? groupRemindersByStatus(reminders)
+      : groupRemindersByCategory(reminders);
 
   // Float the highlighted reminder to the top of its group so the user sees
   // it immediately after tapping a notification.
@@ -288,6 +299,40 @@ function ActiveList({
 
   return (
     <ScrollView contentContainerStyle={styles.listPadding}>
+      <View style={styles.groupByRow}>
+        <Pressable
+          onPress={() => onGroupByChange("status")}
+          style={[
+            styles.groupByChip,
+            groupBy === "status" && styles.groupByChipActive,
+          ]}
+        >
+          <Text
+            style={[
+              styles.groupByChipText,
+              groupBy === "status" && styles.groupByChipTextActive,
+            ]}
+          >
+            By status
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => onGroupByChange("category")}
+          style={[
+            styles.groupByChip,
+            groupBy === "category" && styles.groupByChipActive,
+          ]}
+        >
+          <Text
+            style={[
+              styles.groupByChipText,
+              groupBy === "category" && styles.groupByChipTextActive,
+            ]}
+          >
+            By category
+          </Text>
+        </Pressable>
+      </View>
       {groups.map((group) => (
         <View key={group.key} style={{ marginBottom: spacing.lg }}>
           <View style={styles.groupHeader}>
@@ -326,12 +371,12 @@ function ActiveList({
 }
 
 type ReminderGroup = {
-  key: "overdue" | "dueSoon" | "upcoming" | "paused";
+  key: string;
   label: string;
   items: Reminder[];
 };
 
-function groupReminders(reminders: Reminder[]): ReminderGroup[] {
+function groupRemindersByStatus(reminders: Reminder[]): ReminderGroup[] {
   const now = Date.now();
   const WEEK_MS = 7 * DAY_MS;
   const overdue: Reminder[] = [];
@@ -360,6 +405,53 @@ function groupReminders(reminders: Reminder[]): ReminderGroup[] {
       { key: "paused", label: "Paused", items: paused },
     ] as ReminderGroup[]
   ).filter((g) => g.items.length > 0);
+}
+
+const CATEGORY_ORDER: string[] = [
+  "hvac",
+  "plumbing",
+  "exterior",
+  "interior",
+  "appliance",
+  "safety",
+  "yard",
+  "general",
+];
+
+function groupRemindersByCategory(reminders: Reminder[]): ReminderGroup[] {
+  const bySoonest = (a: Reminder, b: Reminder) => a.nextDue - b.nextDue;
+  const map = new Map<string, Reminder[]>();
+  for (const r of reminders) {
+    const cat = r.category ?? "general";
+    const list = map.get(cat) ?? [];
+    list.push(r);
+    map.set(cat, list);
+  }
+
+  const groups: ReminderGroup[] = [];
+  for (const cat of CATEGORY_ORDER) {
+    const items = map.get(cat);
+    if (items && items.length > 0) {
+      items.sort(bySoonest);
+      groups.push({
+        key: cat,
+        label: CATEGORY_LABEL[cat] ?? cat,
+        items,
+      });
+    }
+  }
+  // Include any categories not in our predefined order
+  for (const [cat, items] of map.entries()) {
+    if (!CATEGORY_ORDER.includes(cat) && items.length > 0) {
+      items.sort(bySoonest);
+      groups.push({
+        key: cat,
+        label: CATEGORY_LABEL[cat] ?? cat,
+        items,
+      });
+    }
+  }
+  return groups;
 }
 
 function SwipeableReminder({
@@ -637,5 +729,30 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "800",
     color: colors.brand,
+  },
+  groupByRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  groupByChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.pill,
+    backgroundColor: "#f5f5f4",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  groupByChipActive: {
+    backgroundColor: colors.brandLight,
+    borderColor: colors.brand,
+  },
+  groupByChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.textMuted,
+  },
+  groupByChipTextActive: {
+    color: colors.brandDark,
   },
 });

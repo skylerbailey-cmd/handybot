@@ -260,6 +260,14 @@ export interface HomeItem {
   room: string;
   /** Local file URI of the item photo. */
   photoUri?: string;
+  /** Manufacturer / brand name, e.g. "GE", "Rheem", "Carrier". */
+  make?: string;
+  /** Model name or number, e.g. "Profile PFE28KYNFS". */
+  model?: string;
+  /** Serial number, if visible. */
+  serialNumber?: string;
+  /** Year manufactured or installed, e.g. 2019. */
+  yearInstalled?: number;
   estimatedAgeYears: number;
   typicalLifespanYears: number;
   condition: ItemCondition;

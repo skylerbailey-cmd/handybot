@@ -1,0 +1,26 @@
+name: Weekly Recall Check
+
+on:
+  schedule:
+    # Every Monday at 9:00 AM UTC
+    - cron: "0 9 * * 1"
+  # Allow manual trigger from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  check-recalls:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Invoke Supabase Edge Function
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "${{ secrets.SUPABASE_FUNCTION_URL }}/check-recalls" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json")
+
+          echo "Response status: $response"
+
+          if [ "$response" -ne 200 ]; then
+            echo "Edge function returned $response"
+            exit 1
+          fi

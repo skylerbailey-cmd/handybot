@@ -1,4 +1,5 @@
 import { Link } from "expo-router";
+import { useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import DifficultyBadge from "./DifficultyBadge";
 import {
@@ -48,6 +49,7 @@ const RISK_FG: Record<string, string> = {
 };
 
 export default function IssueCard({ issue }: { issue: Issue }) {
+  const [imageFailed, setImageFailed] = useState(false);
   const stepsDone = issue.plan.steps.filter((s) => s.completed).length;
   const stepsTotal = issue.plan.steps.length;
   const progressPct =
@@ -65,10 +67,11 @@ export default function IssueCard({ issue }: { issue: Issue }) {
         style={({ pressed }) => [styles.card, pressed && styles.pressed]}
       >
         <View style={styles.thumb}>
-          {issue.coverImageUri ? (
+          {issue.coverImageUri && !imageFailed ? (
             <Image
               source={{ uri: issue.coverImageUri }}
               style={styles.thumbImage}
+              onError={() => setImageFailed(true)}
             />
           ) : (
             <View style={styles.thumbPlaceholder}>

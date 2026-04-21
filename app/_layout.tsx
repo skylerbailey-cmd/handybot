@@ -4,7 +4,9 @@ import * as Notifications from "expo-notifications";
 import { useEffect, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { restoreMissingImages } from "@/lib/cloud/restoreImages";
 import { ensureMultiHomeSetup } from "@/lib/homes";
+import { registerPushToken } from "@/lib/pushToken";
 import { ensureNotificationsConfigured } from "@/lib/reminders";
 import { hydrateSubscription } from "@/lib/subscription";
 import { colors } from "@/lib/theme";
@@ -32,9 +34,18 @@ export default function RootLayout() {
     ensureNotificationsConfigured().catch(() => {
       /* ignore — we'll re-prompt when the user opens Reminders */
     });
-    hydrateSubscription().catch(() => {
-      /* ignore — defaults to free tier / local-only */
-    });
+    hydrateSubscription()
+      .then(async () => {
+        // After subscription state is known and homes are set up, check
+        // for broken local image URIs (common after an Expo SDK upgrade
+        // that rebuilds the app container, wiping the filesystem).
+        await restoreMissingImages();
+        // Register Expo push token so the server can send recall alerts
+        await registerPushToken();
+      })
+      .catch(() => {
+        /* ignore — defaults to free tier / local-only */
+      });
   }, []);
 
   // Foreground / background notification taps.
