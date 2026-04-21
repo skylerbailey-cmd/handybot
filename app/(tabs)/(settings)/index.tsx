@@ -225,7 +225,7 @@ export default function SettingsScreen() {
                         "Data deleted",
                         `All data for "${homeName}" has been removed.`
                       );
-                      router.replace("/");
+                      router.replace("/(tabs)/(home)");
                     } catch (err) {
                       const msg =
                         err instanceof Error ? err.message : "Delete failed";
@@ -286,7 +286,7 @@ export default function SettingsScreen() {
         text: "Sign out",
         onPress: async () => {
           await clearUser();
-          router.replace("/");
+          router.replace("/(tabs)/(home)");
         },
       },
     ]);
@@ -345,7 +345,7 @@ export default function SettingsScreen() {
                 await deleteUserCloudData(currentUser.id);
               }
               await wipeAllData();
-              router.replace("/");
+              router.replace("/(tabs)/(home)");
             } catch (err) {
               const msg = err instanceof Error ? err.message : "Unknown error";
               Alert.alert(
@@ -455,7 +455,7 @@ export default function SettingsScreen() {
       </View>
 
       <Pressable
-        onPress={() => router.push("/insurance-export")}
+        onPress={() => router.push("/(tabs)/(inventory)/insurance-export")}
         style={styles.card}
       >
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>

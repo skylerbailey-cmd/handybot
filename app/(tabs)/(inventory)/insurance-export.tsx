@@ -157,7 +157,7 @@ export default function InsuranceExportScreen() {
 
           <PrimaryButton
             title="Go Pro"
-            onPress={() => router.push("/settings")}
+            onPress={() => router.push("/(tabs)/(settings)")}
             style={{ marginTop: spacing.xl }}
           />
         </ScrollView>
@@ -181,7 +181,7 @@ export default function InsuranceExportScreen() {
               </Text>
               <PrimaryButton
                 title="Go to Inventory"
-                onPress={() => router.push("/inventory")}
+                onPress={() => router.push("/(tabs)/(inventory)")}
                 variant="secondary"
               />
             </View>

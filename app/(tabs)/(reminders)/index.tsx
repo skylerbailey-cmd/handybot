@@ -169,7 +169,7 @@ export default function RemindersScreen() {
   }
 
   function handleOpenEdit(reminder: Reminder) {
-    router.push({ pathname: "/reminder/[id]", params: { id: reminder.id } });
+    router.push({ pathname: "/(tabs)/(reminders)/[id]", params: { id: reminder.id } });
   }
 
   const activeCount = reminders?.length ?? 0;
@@ -187,7 +187,7 @@ export default function RemindersScreen() {
       <Stack.Screen
         options={{
           headerRight: () => (
-            <Link href="/reminder/new" asChild>
+            <Link href="/(tabs)/(reminders)/new" asChild>
               <Pressable hitSlop={10} style={styles.headerBtn}>
                 <Text style={styles.headerBtnText}>+ New</Text>
               </Pressable>

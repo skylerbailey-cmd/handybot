@@ -46,7 +46,7 @@ export default function HomesScreen() {
   async function handleSwitch(home: Home) {
     if (home.id === activeId) return;
     await switchHome(home.id);
-    router.replace("/");
+    router.replace("/(tabs)/(home)");
   }
 
   async function handleAdd() {
@@ -70,7 +70,7 @@ export default function HomesScreen() {
     await refresh();
     // Optionally switch to the new home right away
     await switchHome(home.id);
-    router.replace("/");
+    router.replace("/(tabs)/(home)");
   }
 
   function handleRemove(home: Home) {
@@ -90,7 +90,7 @@ export default function HomesScreen() {
             await removeHome(home.id);
             await refresh();
             if (home.id === activeId) {
-              router.replace("/");
+              router.replace("/(tabs)/(home)");
             }
           },
         },

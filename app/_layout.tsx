@@ -4,51 +4,32 @@ import * as Notifications from "expo-notifications";
 import { useEffect, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { recallSyncOnLaunch } from "@/lib/cloud/recallSync";
 import { restoreMissingImages } from "@/lib/cloud/restoreImages";
 import { ensureMultiHomeSetup } from "@/lib/homes";
 import { registerPushToken } from "@/lib/pushToken";
 import { ensureNotificationsConfigured } from "@/lib/reminders";
 import { hydrateSubscription } from "@/lib/subscription";
-import { colors } from "@/lib/theme";
 
 export default function RootLayout() {
   const router = useRouter();
   const navState = useRootNavigationState();
   const navReady = !!navState?.key;
-  /**
-   * If the app was cold-started via a tapped notification, we get the
-   * response here and need to replay the deep link once the router is
-   * ready. We stash the pending reminderId so the cold-start effect can
-   * run after navReady becomes true.
-   */
   const pendingColdStartReminderId = useRef<string | null>(null);
   const handledColdStart = useRef(false);
 
-  // One-time setup: multi-home migration + notification handler +
-  // subscription tier hydration (so save hooks know if they should
-  // mirror writes to Supabase).
   useEffect(() => {
-    ensureMultiHomeSetup().catch(() => {
-      /* ignore — defaults to "default" home */
-    });
-    ensureNotificationsConfigured().catch(() => {
-      /* ignore — we'll re-prompt when the user opens Reminders */
-    });
+    ensureMultiHomeSetup().catch(() => {});
+    ensureNotificationsConfigured().catch(() => {});
     hydrateSubscription()
       .then(async () => {
-        // After subscription state is known and homes are set up, check
-        // for broken local image URIs (common after an Expo SDK upgrade
-        // that rebuilds the app container, wiping the filesystem).
         await restoreMissingImages();
-        // Register Expo push token so the server can send recall alerts
         await registerPushToken();
+        await recallSyncOnLaunch();
       })
-      .catch(() => {
-        /* ignore — defaults to free tier / local-only */
-      });
+      .catch(() => {});
   }, []);
 
-  // Foreground / background notification taps.
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener(
       (response) => {
@@ -59,7 +40,6 @@ export default function RootLayout() {
     return () => sub.remove();
   }, [router]);
 
-  // Cold-start: app was launched by tapping a notification.
   useEffect(() => {
     if (handledColdStart.current) return;
     Notifications.getLastNotificationResponseAsync()
@@ -75,7 +55,6 @@ export default function RootLayout() {
       });
   }, []);
 
-  // Once the navigation state is ready, flush any pending cold-start deep link.
   useEffect(() => {
     if (!navReady || handledColdStart.current) return;
     handledColdStart.current = true;
@@ -89,59 +68,8 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <StatusBar style="dark" />
-        <Stack
-          screenOptions={{
-            headerStyle: { backgroundColor: colors.background },
-            headerTintColor: colors.text,
-            headerTitleStyle: { fontWeight: "700" },
-            headerShadowVisible: false,
-            contentStyle: { backgroundColor: colors.background },
-          }}
-        >
-          <Stack.Screen name="index" options={{ title: "HandyBot" }} />
-          <Stack.Screen
-            name="new"
-            options={{ title: "New repair", presentation: "card" }}
-          />
-          <Stack.Screen
-            name="issue/[id]"
-            options={{ title: "Repair", headerBackTitle: "Back" }}
-          />
-          <Stack.Screen
-            name="ask"
-            options={{ title: "Ask HandyBot" }}
-          />
-          <Stack.Screen
-            name="inventory"
-            options={{ title: "Home Inventory" }}
-          />
-          <Stack.Screen
-            name="inventory-edit"
-            options={{ title: "Edit Item", presentation: "card" }}
-          />
-          <Stack.Screen
-            name="history"
-            options={{ title: "Recalls" }}
-          />
-          <Stack.Screen
-            name="manual-repair"
-            options={{ title: "Log a Repair", presentation: "card" }}
-          />
-          <Stack.Screen name="homes" options={{ title: "My Homes" }} />
-          <Stack.Screen name="reminders" options={{ title: "Reminders" }} />
-          <Stack.Screen
-            name="reminder/new"
-            options={{ title: "New reminder", presentation: "card" }}
-          />
-          <Stack.Screen
-            name="reminder/[id]"
-            options={{ title: "Edit reminder", presentation: "card" }}
-          />
-          <Stack.Screen name="settings" options={{ title: "Settings" }} />
-          <Stack.Screen
-            name="insurance-export"
-            options={{ title: "Insurance Export", presentation: "card" }}
-          />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(tabs)" />
         </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>
@@ -167,11 +95,11 @@ function navigateToReminders(
   try {
     if (reminderId) {
       router.push({
-        pathname: "/reminders",
+        pathname: "/(tabs)/(reminders)",
         params: { highlight: reminderId },
       });
     } else {
-      router.push("/reminders");
+      router.push("/(tabs)/(reminders)");
     }
   } catch {
     /* router may not be ready yet — cold-start effect will retry */

@@ -24,12 +24,12 @@ const ENDPOINT = "https://api.anthropic.com/v1/messages";
 // System prompts
 // --------------------------------------------------------------------------
 
-const PLAN_SYSTEM_PROMPT = `You are HandyBot, a friendly and knowledgeable AI handyman that helps everyday homeowners diagnose and fix things around their house.
+const PLAN_SYSTEM_PROMPT = `You are HandyBot — a seasoned home-improvement expert with 30+ years of hands-on experience. You've got sawdust in your DNA and you genuinely love helping homeowners tackle projects they never thought they could handle. You're the kind of neighbor who shows up with the right tool and walks someone through it step by step.
 
 The user will send you a photo of a problem in their home (plus an optional note). Your job is to produce a complete, actionable repair plan by calling the \`create_repair_plan\` tool.
 
 Guidelines:
-- Be concrete and realistic. Assume the user is an average homeowner with basic DIY skills.
+- Be concrete, confident, and encouraging. Assume the user is an average homeowner with basic DIY skills — but make them feel capable.
 - Use common names for tools and materials (e.g. "adjustable wrench", "plumber's tape", "120-grit sandpaper").
 - Break the repair into clear, numbered steps the user can check off one at a time.
 - Estimate time realistically including setup and cleanup.
@@ -43,16 +43,16 @@ Guidelines:
 
 You MUST call the create_repair_plan tool. Do not reply with plain text.`;
 
-const CHAT_SYSTEM_PROMPT = `You are HandyBot, a friendly and knowledgeable AI handyman helping a homeowner work through a specific repair project.
+const CHAT_SYSTEM_PROMPT = `You are HandyBot — a seasoned home-improvement expert with 30+ years of hands-on experience. You talk like you're right there in the room with the homeowner, looking over their shoulder and coaching them through it. You're confident, encouraging, and you use real-world language — not textbook jargon.
 
 You have an existing repair plan for this project (provided below). The user is checking in with updates, follow-up photos, or questions as they work through the steps.
 
 Guidelines:
 - Refer to steps by their number and short title when relevant.
-- Acknowledge progress when the user shows you something they've done.
+- Acknowledge progress when the user shows you something they've done — celebrate wins and build their confidence.
 - Adapt your advice to what you can actually see in any new photos.
-- Keep messages warm, short, and practical — the user is mid-repair.
-- Only flag safety concerns that are specific and actionable.
+- Keep messages warm, short, and practical — the user is mid-repair. Drop in quick pro tips when they're relevant.
+- Only flag safety concerns that are specific and actionable. When something is genuinely dangerous, get serious fast.
 
 Do not repeat the full plan back to the user — they can already see it in the app.
 
@@ -1057,15 +1057,21 @@ export function applyVerificationResult(
 // Ask HandyBot anything (general home Q&A, no project required)
 // --------------------------------------------------------------------------
 
-const ASK_SYSTEM_PROMPT = `You are HandyBot, a friendly AI home expert. The user is asking a general question about their home — it might be about a potential problem, a weird noise, maintenance advice, product recommendations, or just curiosity.
+const ASK_SYSTEM_PROMPT = `You are HandyBot — think of yourself as the kind of neighbor everyone wishes they had: a seasoned home-improvement expert who's spent 30+ years swinging hammers, snaking drains, wiring outlets, and coaching first-time homeowners through projects they never thought they could tackle. You've got sawdust in your DNA and you genuinely love helping people take care of their homes.
+
+Personality:
+- Confident and encouraging — you believe every homeowner can learn, and you make them feel capable. Celebrate small wins ("Nice catch spotting that early!").
+- Speak in plain, conversational language like you're standing in the garage with the homeowner, not reading from a manual. Use real-world analogies ("Think of your P-trap like a little water dam that keeps sewer gas out").
+- Drop in quick pro tips when they're relevant ("Hand-tight plus a quarter turn is all you need on these fittings — overtighten and you'll crack the fitting").
+- Opinionated about quality — you'll steer people toward the right tool or material and away from cheap shortcuts that cause bigger problems later.
+- Safety-first mentality. If something involves gas, live electrical, structural load, or asbestos-era materials, you get serious fast and tell them to call a licensed pro — no hedging.
 
 Guidelines:
-- Be warm, practical, and specific.
-- If they include a photo, describe exactly what you see before answering.
-- If something looks dangerous (mold, structural damage, gas smell, exposed wiring), say so clearly and recommend a professional.
-- Keep answers concise — 2-4 short paragraphs max. Use bullet points for lists.
-- If you're not sure, say so honestly rather than guessing.
-- You have access to the user's home data below. Use it to give personalized answers. If they ask about their inventory, warranties, repairs, or reminders, reference the actual data. If a question doesn't relate to their data, just answer normally.`;
+- If they include a photo, describe exactly what you see before answering, like you're looking over their shoulder.
+- Keep answers practical and actionable — 2-4 short paragraphs max. Use bullet points for lists.
+- When recommending products or materials, be specific (brand, size, type) rather than generic.
+- If you're not sure about something, say so honestly — a good contractor admits when something's outside their wheelhouse.
+- You have access to the user's home data below. Use it to give personalized answers — reference their specific appliances, ages, conditions, and past repairs when relevant. If a question doesn't relate to their data, just answer normally.`;
 
 export async function askHandyBot(
   messages: ChatRequestMessage[],
@@ -1410,6 +1416,155 @@ export async function analyzeHomeItem(args: {
     warrantyYearsHint: Number(raw.warranty_years_hint) || undefined,
     icon: String(raw.icon ?? "🏠").trim().slice(0, 4) || "🏠",
     suggestedReminders,
+  };
+}
+
+// --------------------------------------------------------------------------
+// Warranty document analysis
+// --------------------------------------------------------------------------
+
+const ANALYZE_WARRANTY_TOOL = {
+  name: "analyze_warranty_document",
+  description:
+    "Extract warranty and purchase information from a photo of a receipt, warranty card, or warranty certificate.",
+  input_schema: {
+    type: "object",
+    properties: {
+      purchase_date: {
+        type: "string",
+        description:
+          "Purchase date in YYYY-MM-DD format if visible on the document. Empty string if not found.",
+      },
+      warranty_expiration: {
+        type: "string",
+        description:
+          "Warranty expiration date in YYYY-MM-DD format if explicitly stated. Empty string if not found. If only a duration is visible (e.g. '2 year warranty'), compute from the purchase date.",
+      },
+      warranty_years: {
+        type: "integer",
+        description:
+          "Warranty duration in years if stated (e.g. '5 Year Limited Warranty'). 0 if not found.",
+      },
+      warranty_provider: {
+        type: "string",
+        description:
+          "The company providing the warranty — manufacturer, retailer, or extended warranty provider. Empty string if not found.",
+      },
+      coverage_notes: {
+        type: "string",
+        description:
+          "Summary of what the warranty covers and any important exclusions or conditions. 1-3 sentences. Empty string if not readable.",
+      },
+      item_name: {
+        type: "string",
+        description:
+          "The product name or description if visible on the document. Empty string if not found.",
+      },
+    },
+    required: [
+      "purchase_date",
+      "warranty_expiration",
+      "warranty_years",
+      "warranty_provider",
+      "coverage_notes",
+    ],
+  },
+} as const;
+
+const ANALYZE_WARRANTY_SYSTEM = `You are analyzing a photo of a warranty document, receipt, or warranty card for a homeowner's inventory tracking app. Extract as much warranty and purchase information as you can see.
+
+Look for: purchase dates, warranty expiration dates, warranty durations, the provider/manufacturer name, what is covered, and any key exclusions or conditions.
+
+If the document is a receipt, look for the store name, date, item description, and any warranty information printed on it.
+
+You MUST call the analyze_warranty_document tool. Do not reply with plain text.`;
+
+export interface AnalyzedWarranty {
+  purchaseDate?: string;
+  warrantyExpiration?: string;
+  warrantyYears?: number;
+  warrantyProvider?: string;
+  coverageNotes?: string;
+  itemName?: string;
+}
+
+export async function analyzeWarrantyDocument(args: {
+  imageBase64: string;
+  imageMediaType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+  itemName?: string;
+}): Promise<AnalyzedWarranty> {
+  const text = args.itemName
+    ? `Please analyze this warranty document or receipt for: ${args.itemName}`
+    : "Please analyze this warranty document or receipt.";
+
+  const data = (await callAnthropic({
+    model: MODEL_SONNET,
+    max_tokens: 800,
+    system: [
+      {
+        type: "text",
+        text: ANALYZE_WARRANTY_SYSTEM,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    tools: [ANALYZE_WARRANTY_TOOL],
+    tool_choice: { type: "tool", name: "analyze_warranty_document" },
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: args.imageMediaType ?? "image/jpeg",
+              data: args.imageBase64,
+            },
+          },
+          { type: "text", text },
+        ],
+      },
+    ],
+  })) as ClaudeResponse;
+
+  const toolUse = data.content.find(
+    (b): b is { type: "tool_use"; name: string; input: unknown } =>
+      b.type === "tool_use" && b.name === "analyze_warranty_document"
+  );
+
+  if (!toolUse) {
+    return {};
+  }
+
+  const raw = toolUse.input as Record<string, unknown>;
+
+  const purchaseDateStr = String(raw.purchase_date ?? "").trim();
+  const warrantyExpStr = String(raw.warranty_expiration ?? "").trim();
+  const warrantyYears = Number(raw.warranty_years) || undefined;
+  const provider = String(raw.warranty_provider ?? "").trim();
+  const coverage = String(raw.coverage_notes ?? "").trim();
+  const itemName = String(raw.item_name ?? "").trim();
+
+  // If we have a purchase date and warranty years but no explicit expiration,
+  // compute it
+  let finalExpiration = warrantyExpStr;
+  if (!finalExpiration && purchaseDateStr && warrantyYears) {
+    try {
+      const pd = new Date(purchaseDateStr);
+      pd.setFullYear(pd.getFullYear() + warrantyYears);
+      finalExpiration = pd.toISOString().split("T")[0];
+    } catch {
+      // ignore
+    }
+  }
+
+  return {
+    purchaseDate: purchaseDateStr || undefined,
+    warrantyExpiration: finalExpiration || undefined,
+    warrantyYears,
+    warrantyProvider: provider || undefined,
+    coverageNotes: coverage || undefined,
+    itemName: itemName || undefined,
   };
 }
 

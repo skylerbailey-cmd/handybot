@@ -1,7 +1,9 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
+  Animated,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -13,14 +15,18 @@ import {
   View,
 } from "react-native";
 import PrimaryButton from "@/components/PrimaryButton";
-import { estimateReplacementCost } from "@/lib/claude";
+import {
+  analyzeHomeItem,
+  analyzeWarrantyDocument,
+  estimateReplacementCost,
+} from "@/lib/claude";
 import {
   addHomeItem,
   loadInventory,
   removeHomeItem,
   updateHomeItem,
 } from "@/lib/homeData";
-import { promptAndPickImage } from "@/lib/image";
+import { promptAndPickImage, readImageAsBase64 } from "@/lib/image";
 import { generateId } from "@/lib/storage";
 import { colors, formatMoney, radius, spacing } from "@/lib/theme";
 import type { HomeItem, ItemCondition } from "@/lib/types";
@@ -72,10 +78,46 @@ export default function InventoryEditScreen() {
   const [warrantyPhotoFailed, setWarrantyPhotoFailed] = useState(false);
   const [receiptPhotoUri, setReceiptPhotoUri] = useState<string | undefined>();
   const [receiptPhotoFailed, setReceiptPhotoFailed] = useState(false);
+  const [analyzingWarranty, setAnalyzingWarranty] = useState(false);
   const [warrantyRegistered, setWarrantyRegistered] = useState(false);
   const [replacementCostUsd, setReplacementCostUsd] = useState<number | undefined>();
   const [costRationale, setCostRationale] = useState<string | undefined>();
   const [estimatingCost, setEstimatingCost] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+
+  // Animated analyzing messages
+  const ANALYZING_MESSAGES = [
+    "Analyzing your photo...",
+    "Identifying the item...",
+    "Estimating age and condition...",
+    "Checking for wear and damage...",
+    "Building maintenance tips...",
+    "Almost done...",
+  ];
+  const [msgIndex, setMsgIndex] = useState(0);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!analyzing) {
+      setMsgIndex(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => {
+        setMsgIndex((prev) => (prev + 1) % ANALYZING_MESSAGES.length);
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }).start();
+      });
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [analyzing, fadeAnim]);
 
   // Fields we keep from analysis but don't expose for editing
   const [category, setCategory] = useState("other");
@@ -159,6 +201,49 @@ export default function InventoryEditScreen() {
       }
     }
   }, [params.itemId, params.analyzedData, params.photoUri]);
+
+  async function handleTakePhoto() {
+    if (analyzing) return;
+    try {
+      const picked = await promptAndPickImage("Photograph a home item");
+      if (!picked) return;
+      setPhotoUri(picked.uri);
+      setPhotoFailed(false);
+      setAnalyzing(true);
+
+      const base64 = await readImageAsBase64(picked.uri);
+      const data = await analyzeHomeItem({
+        imageBase64: base64,
+        imageMediaType: "image/jpeg",
+      });
+
+      // Fill in all the fields from the analysis
+      setName(data.name ?? "");
+      setMake(data.make ?? "");
+      setModel(data.model ?? "");
+      setSerialNumber(data.serialNumber ?? "");
+      setYearInstalled(data.yearInstalled ? String(data.yearInstalled) : "");
+      setConditionNotes(data.conditionNotes ?? "");
+      setEstimatedAgeYears(String(data.estimatedAgeYears ?? 0));
+      setTypicalLifespanYears(String(data.typicalLifespanYears ?? 0));
+      setCondition(data.condition ?? "fair");
+      setCategory(data.category ?? "other");
+      setIcon(data.icon ?? "🏠");
+      setMaintenanceTips(data.maintenanceTips ?? []);
+      setSuggestedReminders(data.suggestedReminders);
+      if (data.purchaseDateHint) setPurchaseDate(data.purchaseDateHint);
+      if (data.warrantyYearsHint && data.purchaseDateHint) {
+        const pd = new Date(data.purchaseDateHint);
+        pd.setFullYear(pd.getFullYear() + data.warrantyYearsHint);
+        setWarrantyExpiration(pd.toISOString().split("T")[0]);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not analyze item";
+      Alert.alert("Something went wrong", msg);
+    } finally {
+      setAnalyzing(false);
+    }
+  }
 
   const canSave =
     name.trim().length > 0 &&
@@ -328,19 +413,48 @@ export default function InventoryEditScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {photoUri && !photoFailed ? (
-            <Image
-              source={{ uri: photoUri }}
-              style={styles.photo}
-              onError={() => setPhotoFailed(true)}
-            />
-          ) : photoUri && photoFailed ? (
-            <View style={styles.photoPlaceholder}>
-              <Text style={{ fontSize: 32 }}>{icon || "📷"}</Text>
-              <Text style={{ fontSize: 12, color: colors.textSubtle }}>
-                Photo unavailable
+            <Pressable onPress={handleTakePhoto} disabled={analyzing}>
+              <Image
+                source={{ uri: photoUri }}
+                style={styles.photo}
+                onError={() => setPhotoFailed(true)}
+              />
+              {analyzing && (
+                <View style={styles.analyzingOverlay}>
+                  <ActivityIndicator color="#fff" size="large" />
+                  <Animated.Text
+                    style={[styles.analyzingOverlayText, { opacity: fadeAnim }]}
+                  >
+                    {ANALYZING_MESSAGES[msgIndex]}
+                  </Animated.Text>
+                  <View style={styles.analyzingDots}>
+                    {ANALYZING_MESSAGES.map((_, i) => (
+                      <View
+                        key={i}
+                        style={[
+                          styles.analyzingDot,
+                          i === msgIndex && styles.analyzingDotActive,
+                          i < msgIndex && styles.analyzingDotPast,
+                        ]}
+                      />
+                    ))}
+                  </View>
+                </View>
+              )}
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={handleTakePhoto}
+              disabled={analyzing}
+              style={styles.cameraPlaceholder}
+            >
+              <Text style={styles.cameraIcon}>📷</Text>
+              <Text style={styles.cameraTitle}>Take a photo</Text>
+              <Text style={styles.cameraHint}>
+                AI will identify the item and fill in the details
               </Text>
-            </View>
-          ) : null}
+            </Pressable>
+          )}
 
           {/* Name / Title */}
           <View style={styles.card}>
@@ -554,14 +668,41 @@ export default function InventoryEditScreen() {
             <Pressable
               onPress={async () => {
                 const result = await promptAndPickImage(
-                  "Photograph receipt or warranty card"
+                  "Photograph warranty card or certificate"
                 );
-                if (result) setWarrantyPhotoUri(result.uri);
+                if (!result) return;
+                setWarrantyPhotoUri(result.uri);
+                setAnalyzingWarranty(true);
+                try {
+                  const base64 = await readImageAsBase64(result.uri);
+                  const analysis = await analyzeWarrantyDocument({
+                    imageBase64: base64,
+                    imageMediaType: "image/jpeg",
+                    itemName: name.trim() || undefined,
+                  });
+                  if (analysis.purchaseDate && !purchaseDate)
+                    setPurchaseDate(analysis.purchaseDate);
+                  if (analysis.warrantyExpiration && !warrantyExpiration)
+                    setWarrantyExpiration(analysis.warrantyExpiration);
+                  if (analysis.warrantyProvider && !warrantyProvider)
+                    setWarrantyProvider(analysis.warrantyProvider);
+                  if (analysis.coverageNotes && !warrantyCoverageNotes)
+                    setWarrantyCoverageNotes(analysis.coverageNotes);
+                } catch {
+                  /* analysis is best-effort — photo is still saved */
+                } finally {
+                  setAnalyzingWarranty(false);
+                }
               }}
+              disabled={analyzingWarranty}
               style={styles.warrantyPhotoBtn}
             >
               <Text style={styles.warrantyPhotoBtnText}>
-                {warrantyPhotoUri ? "Change Warranty Photo" : "+ Add Warranty Photo"}
+                {analyzingWarranty
+                  ? "Analyzing warranty..."
+                  : warrantyPhotoUri
+                    ? "Change Warranty Photo"
+                    : "+ Add Warranty Photo"}
               </Text>
             </Pressable>
 
@@ -584,12 +725,39 @@ export default function InventoryEditScreen() {
                 const result = await promptAndPickImage(
                   "Photograph your receipt"
                 );
-                if (result) setReceiptPhotoUri(result.uri);
+                if (!result) return;
+                setReceiptPhotoUri(result.uri);
+                setAnalyzingWarranty(true);
+                try {
+                  const base64 = await readImageAsBase64(result.uri);
+                  const analysis = await analyzeWarrantyDocument({
+                    imageBase64: base64,
+                    imageMediaType: "image/jpeg",
+                    itemName: name.trim() || undefined,
+                  });
+                  if (analysis.purchaseDate && !purchaseDate)
+                    setPurchaseDate(analysis.purchaseDate);
+                  if (analysis.warrantyExpiration && !warrantyExpiration)
+                    setWarrantyExpiration(analysis.warrantyExpiration);
+                  if (analysis.warrantyProvider && !warrantyProvider)
+                    setWarrantyProvider(analysis.warrantyProvider);
+                  if (analysis.coverageNotes && !warrantyCoverageNotes)
+                    setWarrantyCoverageNotes(analysis.coverageNotes);
+                } catch {
+                  /* analysis is best-effort — photo is still saved */
+                } finally {
+                  setAnalyzingWarranty(false);
+                }
               }}
+              disabled={analyzingWarranty}
               style={styles.warrantyPhotoBtn}
             >
               <Text style={styles.warrantyPhotoBtnText}>
-                {receiptPhotoUri ? "Change Receipt Photo" : "+ Add Receipt Photo"}
+                {analyzingWarranty
+                  ? "Analyzing receipt..."
+                  : receiptPhotoUri
+                    ? "Change Receipt Photo"
+                    : "+ Add Receipt Photo"}
               </Text>
             </Pressable>
 
@@ -804,14 +972,70 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     backgroundColor: colors.border,
   },
-  photoPlaceholder: {
+  cameraPlaceholder: {
     width: "100%",
     height: 180,
     borderRadius: radius.lg,
-    backgroundColor: "#f5f5f4",
+    backgroundColor: colors.brandLighter,
+    borderWidth: 2,
+    borderColor: colors.brandLight,
+    borderStyle: "dashed",
     alignItems: "center",
     justifyContent: "center",
-    gap: 4,
+    gap: spacing.xs,
+  },
+  cameraIcon: {
+    fontSize: 36,
+  },
+  cameraTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: colors.brand,
+  },
+  cameraHint: {
+    fontSize: 12,
+    color: colors.textMuted,
+    textAlign: "center",
+    maxWidth: 220,
+  },
+  analyzingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: radius.lg,
+    backgroundColor: "rgba(28,25,23,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+  },
+  analyzingOverlayText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#fff",
+    textAlign: "center",
+    minHeight: 20,
+  },
+  analyzingDots: {
+    flexDirection: "row",
+    gap: 6,
+    marginTop: spacing.xs,
+  },
+  analyzingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#e7e5e4",
+  },
+  analyzingDotActive: {
+    backgroundColor: colors.brand,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  analyzingDotPast: {
+    backgroundColor: colors.brandLight,
   },
   card: {
     backgroundColor: colors.surface,

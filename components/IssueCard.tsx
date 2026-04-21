@@ -62,7 +62,7 @@ export default function IssueCard({ issue }: { issue: Issue }) {
   const risk = issue.plan.risk;
 
   return (
-    <Link href={`/issue/${issue.id}`} asChild>
+    <Link href={`/(tabs)/(repair)/issue/${issue.id}`} asChild>
       <Pressable
         style={({ pressed }) => [styles.card, pressed && styles.pressed]}
       >

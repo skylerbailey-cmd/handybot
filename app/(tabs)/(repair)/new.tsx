@@ -114,7 +114,7 @@ export default function NewIssueScreen() {
       };
 
       await upsertIssue(issue);
-      router.replace(`/issue/${id}`);
+      router.replace(`/(tabs)/(repair)/issue/${id}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Something went wrong";
       setError(msg);
@@ -180,7 +180,7 @@ export default function NewIssueScreen() {
         />
 
         <Pressable
-          onPress={() => router.push("/manual-repair")}
+          onPress={() => router.push("/(tabs)/(repair)/manual-repair")}
           style={({ pressed }) => [
             styles.manualEntryBtn,
             pressed && { opacity: 0.7 },

@@ -27,7 +27,7 @@ export default function UpcomingRemindersCard({ reminders, onMarkDone }: Props) 
           <Text style={styles.icon}>🔔</Text>
           <Text style={styles.title}>Upcoming maintenance</Text>
         </View>
-        <Link href="/reminders" asChild>
+        <Link href="/(tabs)/(reminders)" asChild>
           <Pressable hitSlop={6}>
             <Text style={styles.seeAll}>See all →</Text>
           </Pressable>
@@ -42,7 +42,7 @@ export default function UpcomingRemindersCard({ reminders, onMarkDone }: Props) 
               key={r.id}
               onPress={() =>
                 router.push({
-                  pathname: "/reminders",
+                  pathname: "/(tabs)/(reminders)",
                   params: { highlight: r.id },
                 })
               }

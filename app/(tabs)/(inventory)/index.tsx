@@ -1,9 +1,7 @@
 import { Stack, useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
-  Animated,
   Image,
   Linking,
   Pressable,
@@ -12,19 +10,7 @@ import {
   Text,
   View,
 } from "react-native";
-
-const ANALYZING_MESSAGES = [
-  "Analyzing your photo...",
-  "Identifying the item...",
-  "Estimating age and condition...",
-  "Checking for wear and damage...",
-  "Building maintenance tips...",
-  "Almost done...",
-];
-
-const MESSAGE_INTERVAL_MS = 3000;
 import PrimaryButton from "@/components/PrimaryButton";
-import { analyzeHomeItem } from "@/lib/claude";
 import {
   getItemsNeedingAttention,
   getWarrantyStatus,
@@ -32,9 +18,12 @@ import {
   removeHomeItem,
   updateHomeItem,
 } from "@/lib/homeData";
-import { promptAndPickImage, readImageAsBase64 } from "@/lib/image";
 import { checkForRecalls, type RecallAlert } from "@/lib/recalls";
-import { formatFrequency, loadReminders } from "@/lib/reminders";
+import {
+  createCustomReminder,
+  formatFrequency,
+  loadReminders,
+} from "@/lib/reminders";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { HomeItem, Reminder } from "@/lib/types";
 import { getRegistrationUrl, openRegistrationPage } from "@/lib/warrantyRegistry";
@@ -77,36 +66,11 @@ export default function InventoryScreen() {
   const router = useRouter();
   const [items, setItems] = useState<HomeItem[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
-  const [adding, setAdding] = useState(false);
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
   const [recallAlerts, setRecallAlerts] = useState<RecallAlert[]>([]);
   const [expandedReminderSections, setExpandedReminderSections] = useState<
     Set<string>
   >(new Set());
-  const [msgIndex, setMsgIndex] = useState(0);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    if (!adding) {
-      setMsgIndex(0);
-      return;
-    }
-    const interval = setInterval(() => {
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }).start(() => {
-        setMsgIndex((prev) => (prev + 1) % ANALYZING_MESSAGES.length);
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }).start();
-      });
-    }, MESSAGE_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [adding, fadeAnim]);
 
   const refresh = useCallback(async () => {
     const [loadedItems, loadedReminders] = await Promise.all([
@@ -160,7 +124,7 @@ export default function InventoryScreen() {
     reminder: { title: string; description: string; frequencyDays: number; icon: string }
   ) {
     router.push({
-      pathname: "/reminder/new",
+      pathname: "/(tabs)/(reminders)/new",
       params: {
         prefillTitle: reminder.title,
         prefillDescription: reminder.description,
@@ -181,6 +145,52 @@ export default function InventoryScreen() {
     return Array.from(map.entries());
   }, [items]);
 
+  // Items with warranties, sorted by expiration (soonest first)
+  const warrantyItems = useMemo(() => {
+    return items
+      .filter((i) => i.warrantyExpiration)
+      .sort((a, b) => a.warrantyExpiration! - b.warrantyExpiration!);
+  }, [items]);
+
+  // Auto-create warranty expiration reminders for items within 60 days
+  useEffect(() => {
+    if (warrantyItems.length === 0 || reminders.length === 0) return;
+
+    const existingTitles = new Set(reminders.map((r) => r.title));
+    const SIXTY_DAYS = 60 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+
+    for (const item of warrantyItems) {
+      if (!item.warrantyExpiration) continue;
+      const timeLeft = item.warrantyExpiration - now;
+      if (timeLeft <= 0 || timeLeft > SIXTY_DAYS) continue;
+
+      const reminderTitle = `Warranty expiring: ${item.name}`;
+      if (existingTitles.has(reminderTitle)) continue;
+
+      // Auto-create a one-time reminder 7 days before expiration
+      const sevenDaysBefore = new Date(item.warrantyExpiration - 7 * 24 * 60 * 60 * 1000);
+      const startDate = sevenDaysBefore.getTime() > now ? sevenDaysBefore : new Date(now + 60000);
+
+      createCustomReminder({
+        title: reminderTitle,
+        description: `The warranty on your ${item.name}${item.warrantyProvider ? ` (${item.warrantyProvider})` : ""} expires ${new Date(item.warrantyExpiration).toLocaleDateString()}. Review coverage and file any claims before it lapses.`,
+        icon: "📋",
+        category: "general",
+        frequencyDays: 365, // won't repeat meaningfully — one-shot
+        startDate,
+        sourceIssueId: item.id,
+      }).then(() => {
+        refresh();
+      }).catch(() => {
+        /* best-effort */
+      });
+
+      // Only auto-create one at a time to avoid spamming
+      break;
+    }
+  }, [warrantyItems, reminders]);
+
   // First item (in render order) that has smart reminders — auto-expand its section
   const firstItemWithRemindersId = useMemo(() => {
     for (const [, categoryItems] of grouped) {
@@ -193,38 +203,13 @@ export default function InventoryScreen() {
     return null;
   }, [grouped]);
 
-  async function handleAddItem() {
-    if (adding) return;
-    try {
-      const picked = await promptAndPickImage("Photograph a home item");
-      if (!picked) return;
-      setAdding(true);
-      const base64 = await readImageAsBase64(picked.uri);
-      const analysis = await analyzeHomeItem({
-        imageBase64: base64,
-        imageMediaType: "image/jpeg",
-      });
-
-      // Navigate to the edit/review screen so the user can adjust
-      // Claude's analysis before saving.
-      router.push({
-        pathname: "/inventory-edit",
-        params: {
-          analyzedData: JSON.stringify(analysis),
-          photoUri: picked.uri,
-        },
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Could not analyze item";
-      Alert.alert("Something went wrong", msg);
-    } finally {
-      setAdding(false);
-    }
+  function handleAddItem() {
+    router.push({ pathname: "/(tabs)/(inventory)/edit" });
   }
 
   function handleEditItem(item: HomeItem) {
     router.push({
-      pathname: "/inventory-edit",
+      pathname: "/(tabs)/(inventory)/edit",
       params: { itemId: item.id },
     });
   }
@@ -254,19 +239,16 @@ export default function InventoryScreen() {
           headerRight: () => (
             <Pressable
               onPress={handleAddItem}
-              disabled={adding}
               hitSlop={10}
               style={styles.headerBtn}
             >
-              <Text style={styles.headerBtnText}>
-                {adding ? "..." : "+ Add"}
-              </Text>
+              <Text style={styles.headerBtnText}>+ Add</Text>
             </Pressable>
           ),
         }}
       />
       <ScrollView contentContainerStyle={styles.container}>
-        {items.length === 0 && !adding && (
+        {items.length === 0 && (
           <View style={styles.empty}>
             <View style={styles.emptyIcon}>
               <Text style={styles.emptyIconText}>🏠</Text>
@@ -281,7 +263,6 @@ export default function InventoryScreen() {
             <PrimaryButton
               title="+ Add your first item"
               onPress={handleAddItem}
-              loading={adding}
             />
           </View>
         )}
@@ -352,6 +333,84 @@ export default function InventoryScreen() {
                     ) : null}
                     <Text style={styles.recallRowLink}>
                       View on CPSC.gov →
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
+        {warrantyItems.length > 0 && (
+          <View style={styles.warrantySection}>
+            <Text style={styles.sectionTitle}>Warranties</Text>
+            <Text style={styles.warrantySectionSub}>
+              Sorted by expiration date
+            </Text>
+            {warrantyItems.map((item) => {
+              const ws = getWarrantyStatus(item);
+              const wc = WARRANTY_BADGE[ws] ?? WARRANTY_BADGE.active;
+              const expDate = new Date(
+                item.warrantyExpiration!
+              ).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              });
+              const now = Date.now();
+              const daysLeft = Math.ceil(
+                (item.warrantyExpiration! - now) / (24 * 60 * 60 * 1000)
+              );
+
+              return (
+                <Pressable
+                  key={`warranty-${item.id}`}
+                  onPress={() => handleEditItem(item)}
+                  style={({ pressed }) => [
+                    styles.warrantyRow,
+                    pressed && { opacity: 0.9 },
+                  ]}
+                >
+                  <Text style={styles.warrantyItemIcon}>{item.icon}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.warrantyItemName} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                    {(item.make || item.warrantyProvider) && (
+                      <Text style={styles.warrantyItemMeta} numberOfLines={1}>
+                        {item.warrantyProvider || item.make}
+                      </Text>
+                    )}
+                    <Text
+                      style={[
+                        styles.warrantyExpiry,
+                        { color: wc.fg },
+                      ]}
+                    >
+                      {ws === "expired"
+                        ? `Expired ${expDate}`
+                        : ws === "expiring"
+                          ? `Expires ${expDate} (${daysLeft} day${daysLeft !== 1 ? "s" : ""} left)`
+                          : `Expires ${expDate}`}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.warrantyStatusBadge,
+                      { backgroundColor: wc.bg },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.warrantyStatusText,
+                        { color: wc.fg },
+                      ]}
+                    >
+                      {ws === "expired"
+                        ? "Expired"
+                        : ws === "expiring"
+                          ? "Expiring"
+                          : "Active"}
                     </Text>
                   </View>
                 </Pressable>
@@ -619,7 +678,7 @@ export default function InventoryScreen() {
 
         {items.length > 0 && (
           <Pressable
-            onPress={() => router.push("/insurance-export")}
+            onPress={() => router.push("/(tabs)/(inventory)/insurance-export")}
             style={styles.insuranceBtn}
           >
             <Text style={styles.insuranceBtnIcon}>🛡</Text>
@@ -638,33 +697,6 @@ export default function InventoryScreen() {
         )}
       </ScrollView>
 
-      {adding && (
-        <View style={styles.loadingOverlay} pointerEvents="auto">
-          <View style={styles.loadingCard}>
-            <ActivityIndicator color={colors.brand} size="large" />
-            <Animated.Text
-              style={[styles.loadingMessage, { opacity: fadeAnim }]}
-            >
-              {ANALYZING_MESSAGES[msgIndex]}
-            </Animated.Text>
-            <View style={styles.loadingDots}>
-              {ANALYZING_MESSAGES.map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.loadingDot,
-                    i === msgIndex && styles.loadingDotActive,
-                    i < msgIndex && styles.loadingDotPast,
-                  ]}
-                />
-              ))}
-            </View>
-            <Text style={styles.loadingHint}>
-              This usually takes 10–15 seconds
-            </Text>
-          </View>
-        </View>
-      )}
     </>
   );
 }
@@ -939,62 +971,6 @@ const styles = StyleSheet.create({
     color: colors.textSubtle,
     marginTop: spacing.md,
   },
-  loadingOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(28,25,23,0.5)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing.xl,
-  },
-  loadingCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    padding: spacing.xl + 4,
-    alignItems: "center",
-    gap: spacing.md,
-    minWidth: 280,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 5,
-  },
-  loadingMessage: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: colors.text,
-    textAlign: "center",
-    minHeight: 22,
-  },
-  loadingDots: {
-    flexDirection: "row",
-    gap: 6,
-    marginTop: spacing.xs,
-  },
-  loadingDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#e7e5e4",
-  },
-  loadingDotActive: {
-    backgroundColor: colors.brand,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  loadingDotPast: {
-    backgroundColor: colors.brandLight,
-  },
-  loadingHint: {
-    fontSize: 12,
-    color: colors.textSubtle,
-    marginTop: spacing.xs,
-  },
   recallCard: {
     backgroundColor: "#fef2f2",
     borderWidth: 1,
@@ -1121,5 +1097,50 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     color: "#047857",
+  },
+  warrantySection: {
+    marginBottom: spacing.lg,
+  },
+  warrantySectionSub: {
+    fontSize: 11,
+    color: colors.textSubtle,
+    marginBottom: spacing.sm,
+  },
+  warrantyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  warrantyItemIcon: {
+    fontSize: 24,
+  },
+  warrantyItemName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  warrantyItemMeta: {
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  warrantyExpiry: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  warrantyStatusBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+  },
+  warrantyStatusText: {
+    fontSize: 10,
+    fontWeight: "800",
   },
 });

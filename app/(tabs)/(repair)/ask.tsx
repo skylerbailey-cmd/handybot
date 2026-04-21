@@ -14,7 +14,12 @@ import ImagePickerButton from "@/components/ImagePickerButton";
 import MessageBubble from "@/components/MessageBubble";
 import TypingIndicator from "@/components/TypingIndicator";
 import { askHandyBot } from "@/lib/claude";
-import { clearAskMessages, loadAskMessages, saveAskMessages } from "@/lib/homeData";
+import {
+  buildHomeContext,
+  clearAskMessages,
+  loadAskMessages,
+  saveAskMessages,
+} from "@/lib/homeData";
 import { readImageAsBase64 } from "@/lib/image";
 import { generateId } from "@/lib/storage";
 import { colors, radius, spacing } from "@/lib/theme";
@@ -33,10 +38,14 @@ export default function AskScreen() {
   const [draft, setDraft] = useState("");
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [homeContext, setHomeContext] = useState<string | undefined>();
   const listRef = useRef<FlatList<AskMessage>>(null);
 
   useEffect(() => {
     loadAskMessages().then(setMessages);
+    buildHomeContext().then(setHomeContext).catch(() => {
+      /* non-blocking */
+    });
   }, []);
 
   useEffect(() => {
@@ -78,7 +87,7 @@ export default function AskScreen() {
         })
       );
 
-      const reply = await askHandyBot(apiMessages);
+      const reply = await askHandyBot(apiMessages, homeContext);
 
       const assistantMsg: AskMessage = {
         id: generateId(),
