@@ -11,16 +11,38 @@ jobs:
   check-recalls:
     runs-on: ubuntu-latest
     steps:
+      - name: Check secrets are configured
+        run: |
+          if [ -z "${{ secrets.SUPABASE_FUNCTION_URL }}" ]; then
+            echo "::error::SUPABASE_FUNCTION_URL secret is not set. Go to repo Settings → Secrets → Actions to add it."
+            exit 1
+          fi
+          if [ -z "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" ]; then
+            echo "::error::SUPABASE_SERVICE_ROLE_KEY secret is not set. Go to repo Settings → Secrets → Actions to add it."
+            exit 1
+          fi
+
       - name: Invoke Supabase Edge Function
         run: |
-          response=$(curl -s -o /dev/null -w "%{http_code}" \
+          response=$(curl -s -w "\n%{http_code}" \
             -X POST "${{ secrets.SUPABASE_FUNCTION_URL }}/check-recalls" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
             -H "Content-Type: application/json")
 
-          echo "Response status: $response"
+          body=$(echo "$response" | head -n -1)
+          status=$(echo "$response" | tail -n 1)
 
-          if [ "$response" -ne 200 ]; then
-            echo "Edge function returned $response"
+          echo "Response status: $status"
+          echo "Response body: $body"
+
+          if [ "$status" -ne 200 ]; then
+            echo "::error::Edge function returned HTTP $status. Body: $body"
+            echo ""
+            echo "Common fixes:"
+            echo "  - 404: Edge function not deployed. Run: supabase functions deploy check-recalls"
+            echo "  - 401: SUPABASE_SERVICE_ROLE_KEY is wrong or expired"
+            echo "  - 500: Check Supabase Edge Function logs in the dashboard"
             exit 1
           fi
+
+          echo "Recall check completed successfully: $body"

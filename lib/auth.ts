@@ -1,5 +1,6 @@
 import * as Linking from "expo-linking";
 import { getSupabase } from "@/lib/supabase";
+import { ensureUser } from "@/lib/storage";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 
 /**
@@ -23,9 +24,21 @@ export async function signUp(
   const sb = getSupabase();
   if (!sb) return { error: "Supabase is not configured.", code: null };
 
-  const { error } = await sb.auth.signUp({ email, password });
+  const { data, error } = await sb.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: Linking.createURL("/"),
+    },
+  });
   if (error)
     return { error: friendlyError(error.message), code: error.code ?? null };
+
+  // Link auth UUID to our app user row.
+  if (data.user) {
+    linkAuthUserId(data.user.id).catch(() => {});
+  }
+
   return { error: null, code: null };
 }
 
@@ -36,9 +49,15 @@ export async function signIn(
   const sb = getSupabase();
   if (!sb) return { error: "Supabase is not configured.", code: null };
 
-  const { error } = await sb.auth.signInWithPassword({ email, password });
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
   if (error)
     return { error: friendlyError(error.message), code: error.code ?? null };
+
+  // Link auth UUID to our app user row so RLS and household queries work.
+  if (data.user) {
+    linkAuthUserId(data.user.id).catch(() => {});
+  }
+
   return { error: null, code: null };
 }
 
@@ -105,6 +124,22 @@ export async function updatePassword(newPassword: string): Promise<AuthResult> {
  */
 export function getPasswordResetRedirectUrl(): string {
   return Linking.createURL("/reset-password");
+}
+
+/**
+ * Link the Supabase Auth UUID to the local app user row. Called after
+ * successful sign-in so that RLS policies and household queries can
+ * resolve `auth.uid()` to our `users.id`.
+ */
+async function linkAuthUserId(authUuid: string): Promise<void> {
+  const sb = getSupabase();
+  if (!sb) return;
+  const user = await ensureUser();
+  const { error } = await sb
+    .from("users")
+    .update({ auth_user_id: authUuid })
+    .eq("id", user.id);
+  if (error) console.warn("linkAuthUserId failed", error.message);
 }
 
 /** Map Supabase error strings to user-friendly messages. */

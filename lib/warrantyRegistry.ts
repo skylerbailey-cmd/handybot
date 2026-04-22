@@ -6,6 +6,10 @@ import type { HomeItem } from "./types";
 // Manufacturer → product registration URL lookup
 // ---------------------------------------------------------------------------
 
+const MODEL_HAIKU = "claude-haiku-4-5-20251001";
+const ANTHROPIC_VERSION = "2023-06-01";
+const ENDPOINT = "https://api.anthropic.com/v1/messages";
+
 /**
  * Maps normalized manufacturer names to their product registration URLs.
  * Keys are lowercase, trimmed brand names. Values are the best publicly
@@ -81,6 +85,18 @@ const REGISTRY: Record<string, string> = {
   "genie garage": "https://www.geniecompany.com/warranty-registration",
 };
 
+// In-memory cache so we don't re-query Claude for the same brand.
+const _aiCache: Record<string, string> = {};
+
+/**
+ * Seed the cache with a URL from the initial item analysis so we never
+ * need a second API call for this brand.
+ */
+export function cacheRegistrationUrl(make: string, url: string): void {
+  if (!make || !url) return;
+  _aiCache[normalizeBrand(make)] = url;
+}
+
 /**
  * Normalize a brand string for lookup: lowercase, trim, strip "inc" / "corp"
  * suffixes, and collapse whitespace.
@@ -106,7 +122,78 @@ export function getRegistrationUrl(make: string | undefined): string | undefined
   for (const [regKey, url] of Object.entries(REGISTRY)) {
     if (key.includes(regKey) || regKey.includes(key)) return url;
   }
+  // Check AI cache
+  if (_aiCache[key]) return _aiCache[key];
   return undefined;
+}
+
+/**
+ * Ask Claude Haiku to find the warranty/product registration URL for a
+ * manufacturer + product. Fast and cheap. Returns undefined if Claude can't
+ * find one or if the API call fails.
+ */
+async function askClaudeForRegistrationUrl(
+  item: HomeItem
+): Promise<string | undefined> {
+  const key = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
+  if (!key) return undefined;
+
+  const brand = item.make ?? item.name;
+  const cacheKey = normalizeBrand(brand);
+  if (_aiCache[cacheKey]) return _aiCache[cacheKey];
+
+  const productDetails = [
+    item.make && `Brand: ${item.make}`,
+    item.model && `Model: ${item.model}`,
+    item.name && `Product: ${item.name}`,
+    item.category && `Category: ${item.category}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  try {
+    const res = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": ANTHROPIC_VERSION,
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: MODEL_HAIKU,
+        max_tokens: 300,
+        system: `You are a helpful assistant that finds product warranty registration URLs. Given product details, return ONLY the most likely direct URL for the manufacturer's product/warranty registration page. Return just the URL, nothing else. If the manufacturer does not have an online registration page or you are not confident in the URL, respond with exactly "NONE".`,
+        messages: [
+          {
+            role: "user",
+            content: `Find the product warranty registration URL for:\n${productDetails}`,
+          },
+        ],
+      }),
+    });
+
+    if (!res.ok) return undefined;
+
+    const data = (await res.json()) as {
+      content: Array<{ type: string; text?: string }>;
+    };
+    const text = data.content
+      ?.find((b) => b.type === "text")
+      ?.text?.trim();
+
+    if (!text || text === "NONE") return undefined;
+
+    // Extract a URL from the response (Claude might include extra text)
+    const urlMatch = text.match(/https?:\/\/[^\s"'<>]+/);
+    if (!urlMatch) return undefined;
+
+    const url = urlMatch[0].replace(/[.,;)]+$/, ""); // strip trailing punctuation
+    _aiCache[cacheKey] = url;
+    return url;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -129,8 +216,10 @@ function buildClipboardText(item: HomeItem): string {
  * Opens the manufacturer's registration page in the system browser and
  * copies the item's details to the clipboard for easy pasting.
  *
- * If no URL is found in the registry, falls back to a Google search for
- * "<brand> product warranty registration".
+ * Lookup order:
+ * 1. Static registry (instant)
+ * 2. Claude Haiku AI lookup (fast, cached)
+ * 3. Google search fallback
  */
 export async function openRegistrationPage(item: HomeItem): Promise<void> {
   const clipText = buildClipboardText(item);
@@ -138,12 +227,20 @@ export async function openRegistrationPage(item: HomeItem): Promise<void> {
     await Clipboard.setStringAsync(clipText);
   }
 
-  const knownUrl = getRegistrationUrl(item.make);
-  const url =
-    knownUrl ??
-    `https://www.google.com/search?q=${encodeURIComponent(
+  // 1. Try static registry
+  let url = getRegistrationUrl(item.make);
+
+  // 2. Try Claude AI lookup
+  if (!url) {
+    url = await askClaudeForRegistrationUrl(item);
+  }
+
+  // 3. Fall back to Google search
+  if (!url) {
+    url = `https://www.google.com/search?q=${encodeURIComponent(
       `${item.make ?? item.name} product warranty registration`
     )}`;
+  }
 
   const supported = await Linking.canOpenURL(url);
   if (supported) {

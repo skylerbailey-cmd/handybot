@@ -418,6 +418,24 @@ export async function seedDemoData(): Promise<{
     const fakeRecalls: RecallAlert[] = [];
 
     if (samsung) {
+      // Confirmed recall — model number RF28R7351SR appears in the description
+      fakeRecalls.push({
+        recallId: 10201,
+        recallNumber: "24-112",
+        recallDate: "2024-03-14",
+        title: "Samsung Recalls French Door Refrigerators Due to Ice Maker Defect; Risk of Injury",
+        description:
+          "The ice maker in certain Samsung French Door refrigerators can produce ice shards or oversized ice chunks that can damage the dispenser mechanism. Affected models include RF28R7351SR, RF28R7551SR, RF23M8070SR, and RF28T5001SR.",
+        hazard: "Ice maker can produce sharp ice fragments that may cause lacerations when dispensed",
+        remedy:
+          "Contact Samsung for a free in-home repair. Technicians will replace the ice maker assembly at no charge. Call 1-800-726-7864 or visit samsung.com/us/support.",
+        url: "https://www.cpsc.gov/Recalls/2024/Samsung-Recalls-French-Door-Refrigerators",
+        itemId: samsung.id,
+        matchReason: 'Model "RF28R7351SR" found in recall description',
+        isExactMatch: true,
+      });
+
+      // Possible recall — same manufacturer, different product
       fakeRecalls.push({
         recallId: 9486,
         recallNumber: "23-080",
@@ -430,7 +448,8 @@ export async function seedDemoData(): Promise<{
           "A free software update resolves the issue. Wi-Fi-equipped units download automatically. Non-Wi-Fi models can contact Samsung for a free dongle to install the update.",
         url: "https://www.cpsc.gov/Recalls/2023/Samsung-Recalls-Top-Load-Washing-Machines-Due-to-Fire-Hazard-Software-Repair-Available",
         itemId: samsung.id,
-        matchReason: 'Manufacturer "Samsung" + product type "appliance" match',
+        matchReason: 'Manufacturer "Samsung" + product type "appliance" match — verify this applies to your specific model',
+        isExactMatch: false,
       });
     }
 
@@ -449,7 +468,8 @@ export async function seedDemoData(): Promise<{
         url: "https://www.cpsc.gov/Recalls/2009/Kidde-Recalls-Dual-Sensor-Smoke-Alarms-Can-Fail-to-Warn-of-a-Fire",
         itemId: kidde.id,
         matchReason:
-          'Manufacturer "Kidde" + product type "smoke detector" match',
+          'Manufacturer "Kidde" + product type "smoke detector" match — verify this applies to your specific model',
+        isExactMatch: false,
       });
     }
 
@@ -467,7 +487,8 @@ export async function seedDemoData(): Promise<{
           "Contact LG for a free in-home repair of the machine.",
         url: "https://www.cpsc.gov/Recalls/2012/lg-recalls-top-loading-washing-machines-due-to-risk-of-injury",
         itemId: lg.id,
-        matchReason: 'Manufacturer "LG" + product type "washer" match',
+        matchReason: 'Manufacturer "LG" + product type "washer" match — verify this applies to your specific model',
+        isExactMatch: false,
       });
     }
 

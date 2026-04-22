@@ -64,6 +64,43 @@ const CATEGORY_LABEL: Record<string, string> = {
   other: "Other",
 };
 
+interface ItemSuggestion {
+  name: string;
+  icon: string;
+  category: string;
+  /** Keywords to match against existing items — if any match, hide this suggestion. */
+  keywords: string[];
+}
+
+const COMMON_ITEMS: ItemSuggestion[] = [
+  // HVAC
+  { name: "Furnace", icon: "🔥", category: "hvac", keywords: ["furnace", "heater"] },
+  { name: "Air Conditioner", icon: "❄️", category: "hvac", keywords: ["air conditioner", "ac unit", "a/c"] },
+  { name: "Water Heater", icon: "🚿", category: "hvac", keywords: ["water heater", "hot water"] },
+  { name: "Thermostat", icon: "🌡", category: "hvac", keywords: ["thermostat", "nest", "ecobee"] },
+  // Appliances
+  { name: "Refrigerator", icon: "🧊", category: "appliance", keywords: ["refrigerator", "fridge"] },
+  { name: "Dishwasher", icon: "🍽", category: "appliance", keywords: ["dishwasher"] },
+  { name: "Washer", icon: "👕", category: "appliance", keywords: ["washer", "washing machine"] },
+  { name: "Dryer", icon: "🌀", category: "appliance", keywords: ["dryer"] },
+  { name: "Oven / Range", icon: "🍳", category: "appliance", keywords: ["oven", "range", "stove"] },
+  { name: "Microwave", icon: "📡", category: "appliance", keywords: ["microwave"] },
+  // Plumbing
+  { name: "Sump Pump", icon: "💧", category: "plumbing", keywords: ["sump pump"] },
+  { name: "Water Softener", icon: "🚰", category: "plumbing", keywords: ["water softener"] },
+  // Electrical
+  { name: "Electrical Panel", icon: "⚡", category: "electrical", keywords: ["electrical panel", "breaker", "fuse box"] },
+  { name: "Generator", icon: "🔌", category: "electrical", keywords: ["generator"] },
+  // Exterior
+  { name: "Roof", icon: "🏠", category: "exterior", keywords: ["roof", "shingles"] },
+  { name: "Garage Door", icon: "🚗", category: "exterior", keywords: ["garage door"] },
+  { name: "Deck / Patio", icon: "🪵", category: "exterior", keywords: ["deck", "patio"] },
+  // Safety
+  { name: "Smoke Detectors", icon: "🔔", category: "safety", keywords: ["smoke detector", "smoke alarm"] },
+  { name: "CO Detector", icon: "🛡", category: "safety", keywords: ["co detector", "carbon monoxide"] },
+  { name: "Fire Extinguisher", icon: "🧯", category: "safety", keywords: ["fire extinguisher"] },
+];
+
 export default function InventoryScreen() {
   const router = useRouter();
   const [items, setItems] = useState<HomeItem[]>([]);
@@ -139,6 +176,32 @@ export default function InventoryScreen() {
     }
     return titles;
   }, [reminders]);
+
+  // Suggestions: common items the user hasn't added yet, grouped by category
+  const suggestions = useMemo(() => {
+    if (roomFilter) return new Map<string, ItemSuggestion[]>(); // hide when filtering by room
+    const itemNames = items.map((i) => i.name.toLowerCase());
+    const remaining = COMMON_ITEMS.filter(
+      (s) =>
+        !s.keywords.some((kw) =>
+          itemNames.some((n) => n.includes(kw))
+        )
+    );
+    const map = new Map<string, ItemSuggestion[]>();
+    for (const s of remaining) {
+      const list = map.get(s.category) ?? [];
+      list.push(s);
+      map.set(s.category, list);
+    }
+    return map;
+  }, [items, roomFilter]);
+
+  function handleAddSuggestion(s: ItemSuggestion) {
+    router.push({
+      pathname: "/(tabs)/(inventory)/edit",
+      params: { prefillName: s.name, prefillIcon: s.icon, prefillCategory: s.category },
+    });
+  }
 
   function handleAddReminder(
     item: HomeItem,
@@ -366,49 +429,6 @@ export default function InventoryScreen() {
           </View>
         )}
 
-        {recallAlerts.length > 0 && (
-          <View style={styles.recallCard}>
-            <Text style={styles.recallCardTitle}>
-              ⚠ {recallAlerts.length} recall{recallAlerts.length !== 1 ? "s" : ""} found
-            </Text>
-            <Text style={styles.recallCardSubtitle}>
-              CPSC has issued safety recalls that may affect items in your inventory.
-            </Text>
-            {recallAlerts.map((alert) => {
-              const item = items.find((i) => i.id === alert.itemId);
-              return (
-                <Pressable
-                  key={`${alert.recallId}-${alert.itemId}`}
-                  onPress={() => {
-                    if (alert.url) WebBrowser.openBrowserAsync(alert.url);
-                  }}
-                  style={styles.recallRow}
-                >
-                  <Text style={styles.recallRowIcon}>
-                    {item?.icon ?? "⚠"}
-                  </Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.recallRowItem} numberOfLines={1}>
-                      {item?.name ?? "Unknown item"}
-                    </Text>
-                    <Text style={styles.recallRowTitle} numberOfLines={2}>
-                      {alert.title}
-                    </Text>
-                    {alert.hazard ? (
-                      <Text style={styles.recallRowHazard} numberOfLines={1}>
-                        {alert.hazard}
-                      </Text>
-                    ) : null}
-                    <Text style={styles.recallRowLink}>
-                      View on CPSC.gov →
-                    </Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-
         {warrantyItems.length > 0 && (
           <View style={styles.warrantySection}>
             <Text style={styles.sectionTitle}>Warranties</Text>
@@ -492,6 +512,21 @@ export default function InventoryScreen() {
             <Text style={styles.sectionTitle}>
               {CATEGORY_LABEL[category] ?? category}
             </Text>
+            {/* Suggestion chips for this category */}
+            {(suggestions.get(category) ?? []).length > 0 && (
+              <View style={styles.suggestionRow}>
+                {(suggestions.get(category) ?? []).map((s) => (
+                  <Pressable
+                    key={s.name}
+                    onPress={() => handleAddSuggestion(s)}
+                    style={styles.suggestionChip}
+                  >
+                    <Text style={styles.suggestionIcon}>{s.icon}</Text>
+                    <Text style={styles.suggestionText}>+ {s.name}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
             {categoryItems.map((item) => {
               const c = CONDITION_COLOR[item.condition] ?? CONDITION_COLOR.fair;
               return (
@@ -786,6 +821,30 @@ export default function InventoryScreen() {
             })}
           </View>
         ))}
+
+        {/* Suggestion-only sections for categories with no items yet */}
+        {!roomFilter &&
+          Array.from(suggestions.entries())
+            .filter(([cat]) => !grouped.some(([c]) => c === cat))
+            .map(([cat, catSuggestions]) => (
+              <View key={`suggest-${cat}`} style={styles.section}>
+                <Text style={styles.sectionTitle}>
+                  {CATEGORY_LABEL[cat] ?? cat}
+                </Text>
+                <View style={styles.suggestionRow}>
+                  {catSuggestions.map((s) => (
+                    <Pressable
+                      key={s.name}
+                      onPress={() => handleAddSuggestion(s)}
+                      style={styles.suggestionChip}
+                    >
+                      <Text style={styles.suggestionIcon}>{s.icon}</Text>
+                      <Text style={styles.suggestionText}>+ {s.name}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ))}
 
         {filteredItems.length > 0 && roomFilter && (
           <Text style={styles.roomFilterCountHint}>
@@ -1089,59 +1148,6 @@ const styles = StyleSheet.create({
     color: colors.textSubtle,
     marginTop: spacing.md,
   },
-  recallCard: {
-    backgroundColor: "#fef2f2",
-    borderWidth: 1,
-    borderColor: "#fca5a5",
-    borderRadius: radius.lg,
-    padding: spacing.md + 2,
-    gap: spacing.sm,
-    marginBottom: spacing.lg,
-  },
-  recallCardTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#991b1b",
-  },
-  recallCardSubtitle: {
-    fontSize: 12,
-    color: "#b91c1c",
-    lineHeight: 16,
-  },
-  recallRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderColor: "#fecaca",
-  },
-  recallRowIcon: {
-    fontSize: 20,
-    marginTop: 2,
-  },
-  recallRowItem: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#991b1b",
-  },
-  recallRowTitle: {
-    fontSize: 12,
-    color: "#7f1d1d",
-    lineHeight: 16,
-    marginTop: 1,
-  },
-  recallRowHazard: {
-    fontSize: 11,
-    color: "#b91c1c",
-    fontWeight: "600",
-    marginTop: 2,
-  },
-  recallRowLink: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#dc2626",
-    marginTop: 4,
-  },
   recallBadge: {
     alignSelf: "flex-start",
     backgroundColor: "#fee2e2",
@@ -1259,6 +1265,32 @@ const styles = StyleSheet.create({
   warrantyStatusText: {
     fontSize: 10,
     fontWeight: "800",
+  },
+  suggestionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginBottom: spacing.sm + 2,
+  },
+  suggestionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: "dashed",
+    backgroundColor: colors.surface,
+  },
+  suggestionIcon: {
+    fontSize: 16,
+  },
+  suggestionText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.brand,
   },
   roomFilterScroll: {
     marginBottom: spacing.lg,

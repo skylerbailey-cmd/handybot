@@ -16,6 +16,7 @@ import {
   getItemsNeedingAttention,
   getWarrantyStatus,
   loadInventory,
+  notifyExpiringWarranties,
 } from "@/lib/homeData";
 import { checkForRecalls, type RecallAlert } from "@/lib/recalls";
 import {
@@ -63,6 +64,7 @@ export default function HomeDashboard() {
     setReminders(rem);
     if (inv.length > 0) {
       checkForRecalls(inv).then(setRecalls).catch(() => {});
+      notifyExpiringWarranties(inv).catch(() => {});
     }
   }, []);
 
@@ -219,6 +221,9 @@ export default function HomeDashboard() {
               </Text>
             )}
             <View style={{ flex: 1 }}>
+              <Text style={[styles.healthLabel, { color: healthColor }]}>
+                Home Health Score
+              </Text>
               <Text style={[styles.healthTitle, { color: healthColor }]}>
                 {healthLabel}
               </Text>
@@ -231,6 +236,31 @@ export default function HomeDashboard() {
               </Text>
             </View>
           </View>
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.quickActions}>
+          <Pressable
+            onPress={() => router.push("/(tabs)/(inventory)/edit")}
+            style={({ pressed }) => [
+              styles.quickActionBtn,
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <Text style={styles.quickActionIcon}>📦</Text>
+            <Text style={styles.quickActionLabel}>Add Item</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => router.push("/(tabs)/(repair)")}
+            style={({ pressed }) => [
+              styles.quickActionBtn,
+              styles.quickActionBtnRepair,
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <Text style={styles.quickActionIcon}>🔧</Text>
+            <Text style={styles.quickActionLabel}>New Repair</Text>
+          </Pressable>
         </View>
 
         {/* Recall Alerts */}
@@ -427,9 +457,20 @@ export default function HomeDashboard() {
               </View>
             )}
           </View>
-          <Text style={styles.repairCardLink}>
-            View all repairs →
-          </Text>
+          <View style={styles.repairCardActions}>
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+                router.push("/(tabs)/(repair)");
+              }}
+              style={styles.newRepairBtn}
+            >
+              <Text style={styles.newRepairBtnText}>+ New Repair</Text>
+            </Pressable>
+            <Text style={styles.repairCardLink}>
+              View all repairs →
+            </Text>
+          </View>
         </Pressable>
 
         {/* Inventory Overview */}
@@ -508,6 +549,14 @@ const styles = StyleSheet.create({
     fontSize: 36,
     fontWeight: "900",
   },
+  healthLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    opacity: 0.7,
+    marginBottom: 1,
+  },
   healthTitle: {
     fontSize: 16,
     fontWeight: "800",
@@ -516,6 +565,34 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textMuted,
     marginTop: 2,
+  },
+
+  // Quick actions
+  quickActions: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  quickActionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.brand,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+  },
+  quickActionBtnRepair: {
+    backgroundColor: "#1d4ed8",
+  },
+  quickActionIcon: {
+    fontSize: 16,
+  },
+  quickActionLabel: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "800",
   },
 
   // Recalls
@@ -672,11 +749,27 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     marginTop: 2,
   },
+  repairCardActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: spacing.md,
+  },
+  newRepairBtn: {
+    backgroundColor: colors.brand,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.md,
+  },
+  newRepairBtnText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "800",
+  },
   repairCardLink: {
     fontSize: 12,
     fontWeight: "700",
     color: colors.brand,
-    marginTop: spacing.md,
   },
 
   // Inventory card

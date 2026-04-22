@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
 import { getActiveHomeId, storagePrefix } from "./homes";
+import { getNotificationPrefsSync } from "./notificationPrefs";
 import {
   ensureNotificationsConfigured,
   requestNotificationPermissions,
@@ -40,6 +41,41 @@ export interface CPSCRecall {
   RemedyOptions: Array<{ Option: string }>;
 }
 
+export type RecallStatus = "new" | "contacted" | "in_progress" | "resolved";
+
+export const RECALL_STATUS_STEPS: Array<{
+  key: RecallStatus;
+  label: string;
+  description: string;
+}> = [
+  {
+    key: "new",
+    label: "Discovered",
+    description: "Recall identified — review details and contact the manufacturer",
+  },
+  {
+    key: "contacted",
+    label: "Contacted",
+    description: "Registered with the manufacturer for the recall remedy",
+  },
+  {
+    key: "in_progress",
+    label: "In Progress",
+    description: "Waiting for repair, replacement, or refund",
+  },
+  {
+    key: "resolved",
+    label: "Resolved",
+    description: "Recall remedy completed",
+  },
+];
+
+export interface RecallTracking {
+  status: RecallStatus;
+  notes?: string;
+  updatedAt: number;
+}
+
 /** A recall matched to a specific inventory item. */
 export interface RecallAlert {
   recallId: number;
@@ -55,6 +91,8 @@ export interface RecallAlert {
   itemId: string;
   /** How the match was determined. */
   matchReason: string;
+  /** True when the match is based on an exact model number. */
+  isExactMatch: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -86,83 +124,99 @@ async function queryCPSC(params: Record<string, string>): Promise<CPSCRecall[]> 
 // ---------------------------------------------------------------------------
 
 /**
- * Category keywords that help narrow CPSC search queries for each
- * inventory category.
+ * Normalize a model string for comparison: lowercase, strip common suffixes
+ * like /AA, remove dashes and spaces so "RF28R7351SR/AA" and "rf28r7351sr"
+ * both become "rf28r7351sr".
  */
-const CATEGORY_SEARCH_TERMS: Record<string, string[]> = {
-  hvac: ["furnace", "air conditioner", "HVAC", "heat pump", "thermostat", "water heater"],
-  plumbing: ["faucet", "toilet", "water heater", "pipe", "pump", "valve"],
-  electrical: ["outlet", "switch", "panel", "breaker", "wiring", "generator"],
-  appliance: ["refrigerator", "dishwasher", "washer", "dryer", "oven", "range", "microwave", "stove"],
-  structural: ["door", "window", "deck", "railing", "stairs"],
-  exterior: ["siding", "roof", "gutter", "garage door", "fence"],
-  safety: ["smoke detector", "carbon monoxide", "fire extinguisher", "alarm"],
-  other: [],
-};
+function normalizeModel(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/\/[a-z0-9]{1,3}$/i, "") // strip trailing /AA, /AB etc.
+    .replace(/[-\s]/g, "")
+    .trim();
+}
 
 /**
- * Check if a recall is potentially relevant to an inventory item by
- * comparing keywords in the recall title/description/products against
- * the item's name, make, and model.
+ * Check if the recall's Description field (where CPSC lists affected model
+ * numbers as free text) contains the item's model number.
+ *
+ * The Description often lists models like:
+ *   "Model numbers NE58K9430SS/AA, NE58N9430SG/AA, and NE58R9431SG/AA"
+ *
+ * We normalize both sides and check for a substring match.
  */
-function isRelevantMatch(recall: CPSCRecall, item: HomeItem): string | null {
-  const itemTerms = [
-    item.name,
-    item.make,
-    item.model,
-  ]
-    .filter(Boolean)
-    .map((t) => t!.toLowerCase());
+function descriptionContainsModel(
+  recallDescription: string,
+  itemModel: string
+): boolean {
+  const normalizedModel = normalizeModel(itemModel);
+  if (normalizedModel.length < 3) return false;
 
-  // Check recall title
-  const titleLower = recall.Title.toLowerCase();
-  for (const term of itemTerms) {
-    // Match on meaningful substrings (at least 3 chars to avoid false positives)
-    const words = term.split(/\s+/).filter((w) => w.length >= 3);
-    for (const word of words) {
-      if (titleLower.includes(word)) {
-        return `Recall title mentions "${word}"`;
-      }
+  // Normalize the description: lowercase and remove dashes so model
+  // numbers like "NE58K-9430SS" still match "NE58K9430SS".
+  const normalizedDesc = recallDescription.toLowerCase().replace(/-/g, "");
+  return normalizedDesc.includes(normalizedModel);
+}
+
+interface MatchResult {
+  reason: string;
+  isExactMatch: boolean;
+}
+
+/**
+ * Match a recall against an inventory item. Returns a MatchResult if the
+ * recall is relevant, or null if it isn't.
+ *
+ * Matching tiers (most → least confident):
+ * 1. Model number found in recall Description → exact match
+ * 2. No model on item → manufacturer + product type keyword → possible match
+ *
+ * Generic keyword matches (e.g. matching on the word "door") are NOT used
+ * because they produce too many false positives.
+ */
+function isRelevantMatch(recall: CPSCRecall, item: HomeItem): MatchResult | null {
+  const recallDesc = recall.Description ?? "";
+
+  // Tier 1: Model number match in the recall Description
+  if (item.model && item.model.length >= 3) {
+    if (descriptionContainsModel(recallDesc, item.model)) {
+      return {
+        reason: `Model "${item.model}" found in recall description`,
+        isExactMatch: true,
+      };
     }
+    // If we have a model number but it doesn't match, skip — high confidence
+    // that this recall is for a different product from the same manufacturer.
+    return null;
   }
 
-  // Check recall product names and descriptions
-  for (const product of recall.Products) {
-    const productText = `${product.Name} ${product.Description} ${product.Model}`.toLowerCase();
-    for (const term of itemTerms) {
-      const words = term.split(/\s+/).filter((w) => w.length >= 3);
-      for (const word of words) {
-        if (productText.includes(word)) {
-          return `Recalled product matches "${word}"`;
-        }
-      }
-    }
-
-    // If the item has a model number, check for exact model match
-    if (item.model && item.model.length >= 3) {
-      const modelLower = item.model.toLowerCase().trim();
-      if (product.Model.toLowerCase().includes(modelLower)) {
-        return `Model number "${item.model}" matches recalled product`;
-      }
-    }
-  }
-
-  // Check manufacturer match
+  // Tier 2: No model number on item — fall back to manufacturer + product
+  // type keyword. This is less precise but still useful for items where the
+  // user couldn't capture a model number.
   if (item.make) {
     const makeLower = item.make.toLowerCase();
-    for (const mfg of recall.Manufacturers) {
-      if (mfg.Name.toLowerCase().includes(makeLower) || makeLower.includes(mfg.Name.toLowerCase())) {
-        // Manufacturer matches, but need at least one product-type keyword match too
-        const recallText = `${recall.Title} ${recall.Description}`.toLowerCase();
-        const categoryTerms = CATEGORY_SEARCH_TERMS[item.category] ?? [];
-        const nameWords = item.name.toLowerCase().split(/\s+/).filter((w) => w.length >= 3);
-        const allTerms = [...categoryTerms, ...nameWords];
+    const mfgMatch = recall.Manufacturers.some(
+      (mfg) =>
+        mfg.Name.toLowerCase().includes(makeLower) ||
+        makeLower.includes(mfg.Name.toLowerCase())
+    );
+    if (!mfgMatch) return null;
 
-        for (const ct of allTerms) {
-          if (recallText.includes(ct.toLowerCase())) {
-            return `Manufacturer "${item.make}" + product type "${ct}" match`;
-          }
-        }
+    // Require the recall to mention the specific product type in its title
+    // or description. Use product-type keywords from the item name that are
+    // specific enough (5+ chars) to avoid false positives.
+    const recallText = `${recall.Title} ${recallDesc}`.toLowerCase();
+    const productWords = item.name
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((w) => w.length >= 5 && w !== item.make?.toLowerCase());
+
+    for (const word of productWords) {
+      if (recallText.includes(word)) {
+        return {
+          reason: `Manufacturer "${item.make}" + product "${word}" match — verify this applies to your specific model`,
+          isExactMatch: false,
+        };
       }
     }
   }
@@ -238,65 +292,56 @@ export async function checkForRecalls(items: HomeItem[]): Promise<RecallAlert[]>
   const alerts: RecallAlert[] = [];
   const seenRecallIds = new Set<string>(); // recallId:itemId
 
-  // Group items by manufacturer for efficient querying
-  const byMake = new Map<string, HomeItem[]>();
-  const noMake: HomeItem[] = [];
-
-  for (const item of items) {
-    if (item.make) {
-      const key = item.make.toLowerCase().trim();
-      const list = byMake.get(key) ?? [];
-      list.push(item);
-      byMake.set(key, list);
-    } else {
-      noMake.push(item);
+  function addIfMatch(recall: CPSCRecall, item: HomeItem): void {
+    const dedupeKey = `${recall.RecallID}:${item.id}`;
+    if (seenRecallIds.has(dedupeKey)) return;
+    const match = isRelevantMatch(recall, item);
+    if (match) {
+      seenRecallIds.add(dedupeKey);
+      alerts.push(recallToAlert(recall, item.id, match.reason, match.isExactMatch));
     }
   }
 
-  // Query by manufacturer
+  // Strategy 1: Items WITH a model number — search RecallDescription
+  // directly. This is the most precise: the CPSC Description field is
+  // where affected model numbers are listed.
+  const withModel = items.filter((i) => i.model && i.model.length >= 3);
+  for (const item of withModel) {
+    try {
+      const recalls = await queryCPSC({
+        RecallDescription: item.model!,
+      });
+      for (const recall of recalls) {
+        addIfMatch(recall, item);
+      }
+    } catch {
+      /* best-effort */
+    }
+  }
+
+  // Strategy 2: Items with a make but NO model number — query by
+  // manufacturer and rely on product-type keyword matching.
+  const makeNoModel = items.filter(
+    (i) => i.make && (!i.model || i.model.length < 3)
+  );
+  const byMake = new Map<string, HomeItem[]>();
+  for (const item of makeNoModel) {
+    const key = item.make!.toLowerCase().trim();
+    const list = byMake.get(key) ?? [];
+    list.push(item);
+    byMake.set(key, list);
+  }
+
   for (const [make, makeItems] of byMake) {
     try {
       const recalls = await queryCPSC({ Manufacturer: make });
       for (const recall of recalls) {
         for (const item of makeItems) {
-          const dedupeKey = `${recall.RecallID}:${item.id}`;
-          if (seenRecallIds.has(dedupeKey)) continue;
-
-          const reason = isRelevantMatch(recall, item);
-          if (reason) {
-            seenRecallIds.add(dedupeKey);
-            alerts.push(recallToAlert(recall, item.id, reason));
-          }
+          addIfMatch(recall, item);
         }
       }
     } catch (err) {
       console.warn(`Recall check failed for manufacturer "${make}"`, err);
-    }
-  }
-
-  // For items without a make, search by product name keywords
-  for (const item of noMake) {
-    const searchTerms = item.name
-      .split(/\s+/)
-      .filter((w) => w.length >= 4)
-      .slice(0, 2); // limit queries
-
-    for (const term of searchTerms) {
-      try {
-        const recalls = await queryCPSC({ ProductName: term });
-        for (const recall of recalls) {
-          const dedupeKey = `${recall.RecallID}:${item.id}`;
-          if (seenRecallIds.has(dedupeKey)) continue;
-
-          const reason = isRelevantMatch(recall, item);
-          if (reason) {
-            seenRecallIds.add(dedupeKey);
-            alerts.push(recallToAlert(recall, item.id, reason));
-          }
-        }
-      } catch {
-        /* ignore individual failures */
-      }
     }
   }
 
@@ -394,14 +439,22 @@ async function notifyNewRecalls(
 ): Promise<void> {
   await ensureNotificationsConfigured();
 
+  // Respect notification preferences
+  const prefs = getNotificationPrefsSync();
+  if (!prefs.recallsConfirmed && !prefs.recallsPossible) return;
+
   // Check existing permission silently — don't prompt
   const { granted } = await Notifications.getPermissionsAsync();
   if (!granted) return;
 
   const notified = await loadNotifiedIds();
-  const newAlerts = alerts.filter(
-    (a) => !notified.has(`${a.recallId}:${a.itemId}`)
-  );
+  const newAlerts = alerts.filter((a) => {
+    if (notified.has(`${a.recallId}:${a.itemId}`)) return false;
+    // Filter based on confirmed vs possible preference
+    if (a.isExactMatch && !prefs.recallsConfirmed) return false;
+    if (!a.isExactMatch && !prefs.recallsPossible) return false;
+    return true;
+  });
 
   if (newAlerts.length === 0) return;
 
@@ -471,10 +524,71 @@ async function loadCloudAlerts(): Promise<RecallAlert[] | null> {
       imageUrl: (row.image_url as string) ?? undefined,
       itemId: row.item_id as string,
       matchReason: (row.match_reason as string) ?? "",
+      isExactMatch: (row.is_exact_match as boolean) ?? false,
     }));
   } catch {
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Recall status tracking
+// ---------------------------------------------------------------------------
+
+function trackingKey(): string {
+  return storagePrefix() + "recall_tracking";
+}
+
+/** Load all recall tracking statuses. */
+export async function loadRecallTracking(): Promise<
+  Map<string, RecallTracking>
+> {
+  try {
+    const raw = await AsyncStorage.getItem(trackingKey());
+    if (!raw) return new Map();
+    const obj = JSON.parse(raw) as Record<string, RecallTracking>;
+    return new Map(Object.entries(obj));
+  } catch {
+    return new Map();
+  }
+}
+
+function trackingId(recallId: number, itemId: string): string {
+  return `${recallId}:${itemId}`;
+}
+
+/** Update the status of a specific recall. */
+export async function updateRecallStatus(
+  recallId: number,
+  itemId: string,
+  status: RecallStatus,
+  notes?: string
+): Promise<void> {
+  const map = await loadRecallTracking();
+  const id = trackingId(recallId, itemId);
+  const existing = map.get(id);
+  map.set(id, {
+    status,
+    notes: notes ?? existing?.notes,
+    updatedAt: Date.now(),
+  });
+  const obj: Record<string, RecallTracking> = {};
+  for (const [k, v] of map) obj[k] = v;
+  await AsyncStorage.setItem(trackingKey(), JSON.stringify(obj));
+}
+
+/** Get the tracking status for a specific recall. */
+export function getRecallTracking(
+  trackingMap: Map<string, RecallTracking>,
+  recallId: number,
+  itemId: string
+): RecallTracking {
+  return (
+    trackingMap.get(trackingId(recallId, itemId)) ?? {
+      status: "new",
+      updatedAt: 0,
+    }
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -484,7 +598,8 @@ async function loadCloudAlerts(): Promise<RecallAlert[] | null> {
 function recallToAlert(
   recall: CPSCRecall,
   itemId: string,
-  matchReason: string
+  matchReason: string,
+  isExactMatch: boolean
 ): RecallAlert {
   return {
     recallId: recall.RecallID,
@@ -498,5 +613,6 @@ function recallToAlert(
     imageUrl: recall.Images?.[0]?.URL,
     itemId,
     matchReason,
+    isExactMatch,
   };
 }

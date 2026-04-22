@@ -18,6 +18,7 @@ export async function pushHomes(userId: string, homes: Home[]): Promise<void> {
       address: h.address,
       icon: h.icon,
       created_at: h.createdAt,
+      ...(h.householdId ? { household_id: h.householdId } : {}),
     }));
     const { error } = await supabase
       .from("homes")

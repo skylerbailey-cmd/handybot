@@ -1278,6 +1278,11 @@ const ANALYZE_ITEM_TOOL = {
         description:
           "Best guess for which room this item is typically found in. Use one of: Kitchen, Living Room, Master Bedroom, Bedroom, Bathroom, Basement, Garage, Attic, Laundry Room, Dining Room, Office, Outdoor, Utility Room, Hallway. Pick the most likely location based on the item type.",
       },
+      warranty_registration_url: {
+        type: "string",
+        description:
+          "The direct URL to the manufacturer's product/warranty registration page, based on the identified brand. For example, Samsung → 'https://www.samsung.com/us/support/product-registration/', GE → 'https://www.geappliances.com/register'. Return an empty string if the brand is unknown or you're not confident in the URL.",
+      },
       suggested_reminders: {
         type: "array",
         description:
@@ -1322,6 +1327,8 @@ const ANALYZE_ITEM_TOOL = {
 
 const ANALYZE_ITEM_SYSTEM = `You are HandyBot analyzing a photo of a home item for a homeowner's inventory. Identify what it is, estimate its age and condition from what you can see, and provide practical maintenance advice. Be specific about what you observe — mention brand names, model indicators, visible wear, rust, dates, stickers, etc. when you can see them. If you can see a purchase date, warranty sticker, or warranty duration label, include those in your response.
 
+If you can identify the manufacturer/brand, include the direct URL to their product warranty registration page in the warranty_registration_url field. Use the real, official URL for the US market (e.g. https://www.samsung.com/us/support/product-registration/ for Samsung). Only include a URL if you are confident it is correct.
+
 You MUST call the analyze_home_item tool. Do not reply with plain text.`;
 
 export interface AnalyzedItem {
@@ -1339,6 +1346,7 @@ export interface AnalyzedItem {
   purchaseDateHint?: string;
   warrantyYearsHint?: number;
   icon: string;
+  warrantyRegistrationUrl?: string;
   suggestedRoom?: string;
   suggestedReminders: Array<{
     title: string;
@@ -1404,6 +1412,8 @@ export async function analyzeHomeItem(args: {
     }))
     .filter((r) => r.title.length > 0 && r.frequencyDays > 0);
 
+  const warrantyUrl = String(raw.warranty_registration_url ?? "").trim();
+
   return {
     name: String(raw.name ?? "Unknown item").trim(),
     category: String(raw.category ?? "other").trim(),
@@ -1420,6 +1430,7 @@ export async function analyzeHomeItem(args: {
       : [],
     purchaseDateHint: raw.purchase_date_hint ? String(raw.purchase_date_hint).trim() : undefined,
     warrantyYearsHint: Number(raw.warranty_years_hint) || undefined,
+    warrantyRegistrationUrl: warrantyUrl.startsWith("http") ? warrantyUrl : undefined,
     icon: String(raw.icon ?? "🏠").trim().slice(0, 4) || "🏠",
     suggestedRoom: raw.suggested_room ? String(raw.suggested_room).trim() : undefined,
     suggestedReminders,

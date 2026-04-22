@@ -85,11 +85,7 @@ export default function LoginScreen() {
   }
 
   function goBack() {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace("/(tabs)/(settings)");
-    }
+    router.replace("/(tabs)/(home)");
   }
 
   function toggleMode() {
@@ -110,17 +106,35 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.header}>
+            <View
+              style={[
+                styles.headerIcon,
+                isSignIn ? styles.headerIconSignIn : styles.headerIconSignUp,
+              ]}
+            >
+              <Text style={styles.headerIconText}>
+                {isSignIn ? "👋" : "🚀"}
+              </Text>
+            </View>
             <Text style={styles.title}>
-              {isSignIn ? "Sign in" : "Create account"}
+              {isSignIn ? "Welcome back" : "Get started"}
             </Text>
             <Text style={styles.subtitle}>
               {isSignIn
-                ? "Sign in to enable cloud backup and sync your data across devices."
-                : "Create an account to back up your data and access it on any device."}
+                ? "Sign in to access your cloud backup and sync across devices."
+                : "Create a free account to back up your data and access it anywhere."}
             </Text>
           </View>
 
-          <View style={styles.card}>
+          <View
+            style={[
+              styles.card,
+              isSignIn ? styles.cardSignIn : styles.cardSignUp,
+            ]}
+          >
+            <Text style={styles.cardBanner}>
+              {isSignIn ? "SIGN IN" : "NEW ACCOUNT"}
+            </Text>
             <Text style={styles.label}>Email</Text>
             <TextInput
               style={styles.input}
@@ -195,26 +209,27 @@ export default function LoginScreen() {
               style={{ marginTop: spacing.xl }}
             />
 
-            <PrimaryButton
-              title={
-                isSignIn
-                  ? "Don\u2019t have an account? Create one"
-                  : "Already have an account? Sign in"
-              }
-              onPress={toggleMode}
-              variant="secondary"
-              disabled={loading}
-              style={{ marginTop: spacing.sm }}
-            />
           </View>
 
-          <PrimaryButton
-            title="Skip for now"
-            onPress={goBack}
-            variant="secondary"
+          <Pressable
+            onPress={toggleMode}
             disabled={loading}
-            style={{ marginTop: spacing.sm }}
-          />
+            style={[
+              styles.toggleCard,
+              isSignIn ? styles.toggleCardToSignUp : styles.toggleCardToSignIn,
+              loading && { opacity: 0.5 },
+            ]}
+          >
+            <Text style={styles.toggleText}>
+              {isSignIn
+                ? "New here? "
+                : "Already have an account? "}
+            </Text>
+            <Text style={styles.toggleAction}>
+              {isSignIn ? "Create an account" : "Sign in instead"}
+            </Text>
+          </Pressable>
+
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -231,25 +246,87 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xxl,
   },
   header: {
+    alignItems: "center",
     marginBottom: spacing.xl,
+  },
+  headerIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.md,
+  },
+  headerIconSignIn: {
+    backgroundColor: colors.brandLight,
+  },
+  headerIconSignUp: {
+    backgroundColor: "#dbeafe",
+  },
+  headerIconText: {
+    fontSize: 30,
   },
   title: {
     fontSize: 26,
     fontWeight: "700",
     color: colors.text,
+    textAlign: "center",
   },
   subtitle: {
     fontSize: 14,
     color: colors.textMuted,
     marginTop: spacing.sm,
     lineHeight: 20,
+    textAlign: "center",
+    maxWidth: 320,
   },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 2,
     padding: spacing.lg,
+  },
+  cardSignIn: {
+    borderColor: colors.brand,
+  },
+  cardSignUp: {
+    borderColor: "#3b82f6",
+  },
+  cardBanner: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1,
+    color: colors.textSubtle,
+    textAlign: "center",
+    marginBottom: spacing.md,
+  },
+  toggleCard: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    marginTop: spacing.md,
+  },
+  toggleCardToSignUp: {
+    borderColor: "#93c5fd",
+    backgroundColor: "#eff6ff",
+  },
+  toggleCardToSignIn: {
+    borderColor: colors.brandLight,
+    backgroundColor: "#fff7ed",
+  },
+  toggleText: {
+    fontSize: 14,
+    color: colors.textMuted,
+  },
+  toggleAction: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.brand,
   },
   label: {
     fontSize: 13,

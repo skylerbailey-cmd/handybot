@@ -98,6 +98,7 @@ async function pullAndMergeHomes(userId: string): Promise<number> {
         address: row.address ?? "",
         icon: row.icon ?? "🏠",
         createdAt: row.created_at ?? Date.now(),
+        ...(row.household_id ? { householdId: row.household_id as string } : {}),
       });
       added++;
     }

@@ -5,6 +5,7 @@ import { syncReminders } from "./cloud/sync";
 import { storagePrefix } from "./homes";
 import { generateId } from "./storage";
 import { isCloudBackupEnabled } from "./subscription";
+import { getNotificationPrefsSync } from "./notificationPrefs";
 import type {
   MaintenanceTemplate,
   Reminder,
@@ -130,6 +131,9 @@ async function scheduleLocalNotification(
     60, // never fire in the past / super-soon: minimum 60s
     Math.round((reminder.nextDue - Date.now()) / 1000)
   );
+
+  // Respect notification preferences
+  if (!getNotificationPrefsSync().reminders) return undefined;
 
   try {
     const id = await Notifications.scheduleNotificationAsync({

@@ -1,5 +1,5 @@
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useRouter, useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Linking,
@@ -8,6 +8,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -34,7 +35,28 @@ import {
   isCloudBackupEnabled,
   setCloudBackupEnabled,
 } from "@/lib/subscription";
+import {
+  createHousehold,
+  loadMyHousehold,
+  loadHouseholdMembers,
+  loadPendingInvites,
+  createInvite,
+  cancelInvite,
+  removeMember,
+  leaveHousehold,
+  checkMyInvites,
+  acceptInvite,
+  type Household,
+  type HouseholdMember,
+  type HouseholdInvite,
+} from "@/lib/household";
 import { isSupabaseConfigured } from "@/lib/supabase";
+import {
+  loadNotificationPrefs,
+  saveNotificationPrefs,
+  type NotificationPrefs,
+} from "@/lib/notificationPrefs";
+import { requestNotificationPermissions } from "@/lib/reminders";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { User } from "@/lib/types";
 
@@ -59,6 +81,41 @@ export default function SettingsScreen() {
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteModalBackupOn, setDeleteModalBackupOn] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteHomeModalVisible, setDeleteHomeModalVisible] = useState(false);
+  const [deleteHomeConfirmText, setDeleteHomeConfirmText] = useState("");
+  const [hasSession, setHasSession] = useState(false);
+  const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>({
+    reminders: true,
+    recallsConfirmed: true,
+    recallsPossible: true,
+    warranties: true,
+    marketing: true,
+    marketingConsentDate: null,
+  });
+  const [household, setHousehold] = useState<Household | null>(null);
+  const [members, setMembers] = useState<HouseholdMember[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<HouseholdInvite[]>([]);
+  const [myInvites, setMyInvites] = useState<HouseholdInvite[]>([]);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [familyBusy, setFamilyBusy] = useState(false);
+
+  async function refreshHousehold() {
+    const hh = await loadMyHousehold();
+    setHousehold(hh);
+    if (hh) {
+      const [m, p] = await Promise.all([
+        loadHouseholdMembers(hh.id),
+        loadPendingInvites(hh.id),
+      ]);
+      setMembers(m);
+      setPendingInvites(p);
+    } else {
+      setMembers([]);
+      setPendingInvites([]);
+    }
+    const inv = await checkMyInvites();
+    setMyInvites(inv);
+  }
 
   useEffect(() => {
     ensureUser().then(setUser);
@@ -66,7 +123,19 @@ export default function SettingsScreen() {
     getActiveHome().then((h) => {
       if (h) setHomeName(h.name);
     });
+    getSession().then((s) => setHasSession(!!s));
+    loadNotificationPrefs().then(setNotifPrefs);
+    refreshHousehold().catch(() => {});
   }, []);
+
+  // Re-check session when the screen comes back into focus (e.g. after login).
+  useFocusEffect(
+    useCallback(() => {
+      getSession().then((s) => setHasSession(!!s));
+      hydrateSubscription().then(setCloudBackup);
+      refreshHousehold().catch(() => {});
+    }, [])
+  );
 
   async function handleToggleCloudBackup() {
     if (backupBusy) return;
@@ -215,47 +284,27 @@ export default function SettingsScreen() {
   }
 
   function handleDeleteHomeData() {
-    Alert.alert(
-      `Delete all data for "${homeName}"?`,
-      "This will permanently remove all repairs, inventory items, reminders, and photos for this home. This cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete everything",
-          style: "destructive",
-          onPress: () => {
-            Alert.alert(
-              "Last chance",
-              `All data for "${homeName}" will be permanently deleted.`,
-              [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Delete permanently",
-                  style: "destructive",
-                  onPress: async () => {
-                    setDeleteBusy(true);
-                    try {
-                      await deleteAllHomeData();
-                      Alert.alert(
-                        "Data deleted",
-                        `All data for "${homeName}" has been removed.`
-                      );
-                      router.replace("/(tabs)/(home)");
-                    } catch (err) {
-                      const msg =
-                        err instanceof Error ? err.message : "Delete failed";
-                      Alert.alert("Delete failed", msg);
-                    } finally {
-                      setDeleteBusy(false);
-                    }
-                  },
-                },
-              ]
-            );
-          },
-        },
-      ]
-    );
+    setDeleteHomeConfirmText("");
+    setDeleteHomeModalVisible(true);
+  }
+
+  async function executeDeleteHomeData() {
+    setDeleteHomeModalVisible(false);
+    setDeleteBusy(true);
+    try {
+      await deleteAllHomeData();
+      Alert.alert(
+        "Data deleted",
+        `All data for "${homeName}" has been removed.`
+      );
+      router.replace("/(tabs)/(home)");
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Delete failed";
+      Alert.alert("Delete failed", msg);
+    } finally {
+      setDeleteBusy(false);
+    }
   }
 
   async function handleContactSupport() {
@@ -295,18 +344,228 @@ export default function SettingsScreen() {
   }
 
   function handleSignOut() {
-    Alert.alert("Sign out?", "You can sign back in any time.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Sign out",
-        onPress: async () => {
-          // Sign out of Supabase if a session exists, then clear local user.
-          await authSignOut();
-          await clearUser();
-          router.replace("/(tabs)/(home)");
+    Alert.alert(
+      "Sign out?",
+      "Your data will stay safely in the cloud. Local data on this device will be cleared, but everything will come back when you sign in again.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Sign out",
+          onPress: async () => {
+            try { await authSignOut(); } catch { /* ok */ }
+            await setCloudBackupEnabled(false);
+            await wipeAllData();
+            // Re-create a fresh local user so the app keeps working offline.
+            const freshUser = await ensureUser();
+            setUser(freshUser);
+            setCloudBackup(false);
+            setHasSession(false);
+            setBackupStatus(null);
+            setRestoreStatus(null);
+          },
         },
-      },
-    ]);
+      ]
+    );
+  }
+
+  function handleSignIn() {
+    router.push("/login");
+  }
+
+  async function handleToggleNotifPref(
+    key: keyof NotificationPrefs,
+    value: boolean
+  ) {
+    // If turning on, ensure permissions are granted
+    if (value) {
+      const granted = await requestNotificationPermissions();
+      if (!granted) {
+        Alert.alert(
+          "Notifications disabled",
+          "Enable notifications for HandyBot in your device settings to receive alerts.",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Open Settings",
+              onPress: () => Linking.openSettings(),
+            },
+          ]
+        );
+        return;
+      }
+    }
+    const updated = { ...notifPrefs, [key]: value };
+    // Record consent timestamp whenever marketing preference changes
+    if (key === "marketing") {
+      updated.marketingConsentDate = new Date().toISOString();
+    }
+    setNotifPrefs(updated);
+    await saveNotificationPrefs(updated);
+  }
+
+  async function handleCreateHousehold() {
+    if (familyBusy) return;
+    if (!hasSession) {
+      Alert.alert(
+        "Sign in required",
+        "You need to be signed in to create a family plan.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Sign in", onPress: () => router.push("/login") },
+        ]
+      );
+      return;
+    }
+    setFamilyBusy(true);
+    try {
+      const hh = await createHousehold("My Family");
+      if (hh) {
+        await refreshHousehold();
+        Alert.alert("Family plan created", "You can now invite family members to share your home data.");
+      } else {
+        Alert.alert("Failed", "Could not create family plan. Check your connection and try again.");
+      }
+    } catch {
+      Alert.alert("Failed", "Could not create family plan.");
+    } finally {
+      setFamilyBusy(false);
+    }
+  }
+
+  async function handleSendInvite() {
+    if (!household || !inviteEmail.trim()) return;
+    const email = inviteEmail.trim().toLowerCase();
+    if (!email.includes("@")) {
+      Alert.alert("Invalid email", "Please enter a valid email address.");
+      return;
+    }
+    setFamilyBusy(true);
+    try {
+      const invite = await createInvite(household.id, email);
+      if (invite) {
+        setInviteEmail("");
+        await refreshHousehold();
+        Alert.alert(
+          "Invite sent",
+          `When ${email} signs in to HandyBot, they'll see your invite and can join your family plan.`
+        );
+      } else {
+        Alert.alert("Failed", "Could not send invite.");
+      }
+    } catch {
+      Alert.alert("Failed", "Could not send invite.");
+    } finally {
+      setFamilyBusy(false);
+    }
+  }
+
+  async function handleCancelInvite(inviteId: string) {
+    await cancelInvite(inviteId);
+    await refreshHousehold();
+  }
+
+  async function handleRemoveMember(userId: string, memberName?: string) {
+    if (!household) return;
+    Alert.alert(
+      "Remove member?",
+      `${memberName ?? "This person"} will no longer have access to shared homes.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            await removeMember(household.id, userId);
+            await refreshHousehold();
+          },
+        },
+      ]
+    );
+  }
+
+  async function handleLeaveHousehold() {
+    if (!household) return;
+    const isOwner = household.ownerId === user?.id;
+    Alert.alert(
+      isOwner ? "Delete family plan?" : "Leave family plan?",
+      isOwner
+        ? "This will remove all members and delete the family plan. Shared homes will become private again."
+        : "You will lose access to any shared homes from this family plan.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: isOwner ? "Delete" : "Leave",
+          style: "destructive",
+          onPress: async () => {
+            await leaveHousehold(household.id);
+            await refreshHousehold();
+          },
+        },
+      ]
+    );
+  }
+
+  async function handleAcceptInvite(inviteId: string) {
+    if (!hasSession) {
+      Alert.alert(
+        "Sign in required",
+        "You need to be signed in to join a family plan.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Sign in", onPress: () => router.push("/login") },
+        ]
+      );
+      return;
+    }
+    setFamilyBusy(true);
+    try {
+      const ok = await acceptInvite(inviteId);
+      if (ok) {
+        await refreshHousehold();
+        Alert.alert("Joined!", "You've joined the family plan. Shared homes will appear in your home list.");
+      } else {
+        Alert.alert("Failed", "Could not accept invite. It may have expired, or you may already be in a family plan.");
+      }
+    } catch {
+      Alert.alert("Failed", "Could not accept invite.");
+    } finally {
+      setFamilyBusy(false);
+    }
+  }
+
+  function handleUnsubscribe() {
+    Alert.alert(
+      "Cancel subscription?",
+      "This will permanently delete all of your data stored in the cloud (repairs, inventory, reminders, and photos). Your local data on this device will be kept.\n\nThis cannot be undone.",
+      [
+        { text: "Keep subscription", style: "cancel" },
+        {
+          text: "Unsubscribe and delete cloud data",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const currentUser = await ensureUser();
+              await deleteUserCloudData(currentUser.id);
+              try { await authSignOut(); } catch { /* ok */ }
+              await setCloudBackupEnabled(false);
+              setCloudBackup(false);
+              setHasSession(false);
+              setBackupStatus(null);
+              Alert.alert(
+                "Subscription cancelled",
+                "Your cloud data has been deleted. The app will continue to work with your local data."
+              );
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : "Unknown error";
+              Alert.alert(
+                "Couldn't unsubscribe",
+                `${msg}\n\nYour subscription and data are unchanged. Check your connection and try again.`
+              );
+            }
+          },
+        },
+      ]
+    );
   }
 
   function handleDeleteAccount() {
@@ -365,6 +624,80 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Notifications</Text>
+        <Text style={styles.cardBody}>
+          Choose which notifications HandyBot sends to your device.
+        </Text>
+        <View style={styles.notifRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.notifLabel}>Maintenance reminders</Text>
+            <Text style={styles.notifDesc}>
+              Get notified when scheduled maintenance is due
+            </Text>
+          </View>
+          <Switch
+            value={notifPrefs.reminders}
+            onValueChange={(v) => handleToggleNotifPref("reminders", v)}
+            trackColor={{ true: colors.brand }}
+          />
+        </View>
+        <View style={styles.notifRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.notifLabel}>Confirmed recall alerts</Text>
+            <Text style={styles.notifDesc}>
+              Recalls that match your item's exact model number
+            </Text>
+          </View>
+          <Switch
+            value={notifPrefs.recallsConfirmed}
+            onValueChange={(v) => handleToggleNotifPref("recallsConfirmed", v)}
+            trackColor={{ true: colors.brand }}
+          />
+        </View>
+        <View style={styles.notifRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.notifLabel}>Possible recall alerts</Text>
+            <Text style={styles.notifDesc}>
+              Recalls that match the brand but not a specific model
+            </Text>
+          </View>
+          <Switch
+            value={notifPrefs.recallsPossible}
+            onValueChange={(v) => handleToggleNotifPref("recallsPossible", v)}
+            trackColor={{ true: colors.brand }}
+          />
+        </View>
+        <View style={styles.notifRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.notifLabel}>Warranty expirations</Text>
+            <Text style={styles.notifDesc}>
+              Get notified when a warranty is expiring within 30 days
+            </Text>
+          </View>
+          <Switch
+            value={notifPrefs.warranties}
+            onValueChange={(v) => handleToggleNotifPref("warranties", v)}
+            trackColor={{ true: colors.brand }}
+          />
+        </View>
+        <View style={styles.notifDivider} />
+        <View style={styles.notifRowFlat}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.notifLabel}>Tips, updates, and offers</Text>
+            <Text style={styles.notifDesc}>
+              Receive occasional home care tips, new feature announcements, and
+              special offers from HandyBot. You can unsubscribe at any time.
+            </Text>
+          </View>
+          <Switch
+            value={notifPrefs.marketing}
+            onValueChange={(v) => handleToggleNotifPref("marketing", v)}
+            trackColor={{ true: colors.brand }}
+          />
+        </View>
+      </View>
+
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Cloud backup</Text>
         <Text style={styles.cardBody}>
@@ -474,6 +807,147 @@ export default function SettingsScreen() {
         </View>
       </Pressable>
 
+      {/* Family Plan */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Family plan</Text>
+        {!household ? (
+          <>
+            {/* Pending invites for the current user */}
+            {myInvites.length > 0 && (
+              <View style={{ marginTop: spacing.md }}>
+                <Text style={[styles.cardBody, { fontWeight: "600", color: colors.text }]}>
+                  You've been invited to a family plan:
+                </Text>
+                {myInvites.map((inv) => (
+                  <View key={inv.id} style={styles.familyMemberRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.familyMemberName}>
+                        Family invite
+                      </Text>
+                      <Text style={styles.familyMemberRole}>
+                        Expires {new Date(inv.expiresAt).toLocaleDateString()}
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={() => handleAcceptInvite(inv.id)}
+                      style={styles.familyAcceptBtn}
+                    >
+                      <Text style={styles.familyAcceptBtnText}>Join</Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
+            <Text style={styles.cardBody}>
+              Create a family plan to share your home data with family members.
+              Everyone on the plan can view and manage shared homes.
+            </Text>
+            <PrimaryButton
+              title={familyBusy ? "Creating..." : "Create family plan"}
+              onPress={handleCreateHousehold}
+              loading={familyBusy}
+              variant="primary"
+              style={{ marginTop: spacing.md }}
+            />
+          </>
+        ) : (
+          <>
+            <Text style={styles.cardBody}>
+              Your family plan lets members share access to homes.
+            </Text>
+
+            {/* Members list */}
+            <View style={{ marginTop: spacing.md }}>
+              <Text style={styles.familySectionLabel}>Members</Text>
+              {members.map((m) => (
+                <View key={m.id} style={styles.familyMemberRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.familyMemberName}>
+                      {m.name ?? "Member"}
+                      {m.userId === user?.id ? " (you)" : ""}
+                    </Text>
+                    <Text style={styles.familyMemberRole}>
+                      {m.role === "owner" ? "Owner" : "Member"}
+                    </Text>
+                  </View>
+                  {household.ownerId === user?.id &&
+                    m.userId !== user?.id && (
+                      <Pressable
+                        onPress={() =>
+                          handleRemoveMember(m.userId, m.name)
+                        }
+                      >
+                        <Text style={styles.familyRemoveText}>Remove</Text>
+                      </Pressable>
+                    )}
+                </View>
+              ))}
+            </View>
+
+            {/* Pending invites */}
+            {pendingInvites.length > 0 && (
+              <View style={{ marginTop: spacing.md }}>
+                <Text style={styles.familySectionLabel}>Pending invites</Text>
+                {pendingInvites.map((inv) => (
+                  <View key={inv.id} style={styles.familyMemberRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.familyMemberName}>{inv.email}</Text>
+                      <Text style={styles.familyMemberRole}>
+                        Expires {new Date(inv.expiresAt).toLocaleDateString()}
+                      </Text>
+                    </View>
+                    <Pressable onPress={() => handleCancelInvite(inv.id)}>
+                      <Text style={styles.familyRemoveText}>Cancel</Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Invite form — only for the owner */}
+            {household.ownerId === user?.id && (
+              <View style={{ marginTop: spacing.md }}>
+                <Text style={styles.familySectionLabel}>Invite a member</Text>
+                <View style={styles.familyInviteRow}>
+                  <TextInput
+                    style={styles.familyInviteInput}
+                    value={inviteEmail}
+                    onChangeText={setInviteEmail}
+                    placeholder="Email address"
+                    placeholderTextColor={colors.textSubtle}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <Pressable
+                    onPress={handleSendInvite}
+                    disabled={!inviteEmail.trim() || familyBusy}
+                    style={[
+                      styles.familyInviteBtn,
+                      (!inviteEmail.trim() || familyBusy) && { opacity: 0.4 },
+                    ]}
+                  >
+                    <Text style={styles.familyInviteBtnText}>Invite</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+
+            {/* Leave / Delete */}
+            <PrimaryButton
+              title={
+                household.ownerId === user?.id
+                  ? "Delete family plan"
+                  : "Leave family plan"
+              }
+              onPress={handleLeaveHousehold}
+              variant="danger"
+              style={{ marginTop: spacing.lg }}
+            />
+          </>
+        )}
+      </View>
+
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Account</Text>
         <Text style={styles.cardBody}>
@@ -506,8 +980,38 @@ export default function SettingsScreen() {
         />
       </View>
 
+      {hasSession ? (
+        <View style={[styles.card, { gap: spacing.md }]}>
+          <PrimaryButton title="Sign out" onPress={handleSignOut} variant="secondary" />
+          <Text style={styles.cardBody}>
+            Signs you out and clears local data. Your cloud data stays safe — sign back in to restore it.
+          </Text>
+        </View>
+      ) : (
+        <View style={[styles.card, { gap: spacing.md }]}>
+          <PrimaryButton title="Sign in" onPress={handleSignIn} variant="primary" />
+          <Text style={styles.cardBody}>
+            Sign in to enable cloud backup or restore your data from a previous session.
+          </Text>
+        </View>
+      )}
+
+      {cloudBackup && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Subscription</Text>
+          <Text style={styles.cardBody}>
+            Unsubscribing will permanently delete all of your cloud data. Your local data on this device will be kept.
+          </Text>
+          <PrimaryButton
+            title="Cancel subscription"
+            onPress={handleUnsubscribe}
+            variant="danger"
+            style={{ marginTop: spacing.md }}
+          />
+        </View>
+      )}
+
       <View style={[styles.card, { gap: spacing.md }]}>
-        <PrimaryButton title="Sign out" onPress={handleSignOut} variant="secondary" />
         <Text style={styles.cardBody}>
           {cloudBackup
             ? "Deletes your account, every repair, reminder, and inventory item on this device, and your entire cloud backup (including photos). This cannot be undone and cannot be recovered from another device."
@@ -613,6 +1117,56 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        visible={deleteHomeModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDeleteHomeModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>
+              Delete all data for "{homeName}"?
+            </Text>
+            <Text style={styles.modalBody}>
+              This will permanently remove all repairs, inventory items,
+              reminders, and photos for this home. This cannot be undone.
+            </Text>
+            <Text style={styles.modalBody}>
+              Type <Text style={{ fontWeight: "700" }}>DELETE</Text> to confirm.
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              value={deleteHomeConfirmText}
+              onChangeText={setDeleteHomeConfirmText}
+              placeholder="Type DELETE here"
+              placeholderTextColor={colors.textSubtle}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+            <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.md }}>
+              <Pressable
+                onPress={() => setDeleteHomeModalVisible(false)}
+                style={[styles.modalBtn, styles.modalBtnCancel]}
+              >
+                <Text style={styles.modalBtnCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={executeDeleteHomeData}
+                disabled={deleteHomeConfirmText !== "DELETE"}
+                style={[
+                  styles.modalBtn,
+                  styles.modalBtnDelete,
+                  deleteHomeConfirmText !== "DELETE" && styles.modalBtnDisabled,
+                ]}
+              >
+                <Text style={styles.modalBtnDeleteText}>Delete everything</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -657,6 +1211,103 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     fontSize: 13,
     color: colors.textMuted,
+  },
+  notifRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderColor: colors.border,
+    marginTop: spacing.md,
+  },
+  notifLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  notifDesc: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 1,
+  },
+  notifDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginTop: spacing.md,
+  },
+  notifRowFlat: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingTop: spacing.md,
+  },
+  // Family plan
+  familySectionLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    color: colors.textSubtle,
+    marginBottom: spacing.xs,
+  },
+  familyMemberRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderColor: colors.border,
+  },
+  familyMemberName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  familyMemberRole: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 1,
+  },
+  familyRemoveText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#dc2626",
+  },
+  familyAcceptBtn: {
+    backgroundColor: colors.brand,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.md,
+  },
+  familyAcceptBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  familyInviteRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  familyInviteInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    fontSize: 14,
+    color: colors.text,
+  },
+  familyInviteBtn: {
+    backgroundColor: colors.brand,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
+    justifyContent: "center",
+  },
+  familyInviteBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
   },
   row: {
     flexDirection: "row",

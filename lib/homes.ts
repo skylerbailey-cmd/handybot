@@ -13,6 +13,8 @@ export interface Home {
   address: string;
   icon: string;
   createdAt: number;
+  /** Set when this home is shared with a household. */
+  householdId?: string;
 }
 
 // --------------------------------------------------------------------------

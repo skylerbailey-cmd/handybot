@@ -1,7 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Notifications from "expo-notifications";
 import { syncInventory } from "./cloud/sync";
 import { getActiveHome, storagePrefix } from "./homes";
-import { formatFrequency, loadReminders } from "./reminders";
+import { getNotificationPrefsSync } from "./notificationPrefs";
+import { ensureNotificationsConfigured, formatFrequency, loadReminders } from "./reminders";
 import { generateId, loadIssues } from "./storage";
 import { isCloudBackupEnabled } from "./subscription";
 import type { AskMessage, HomeItem, Reminder, WarrantyStatus } from "./types";
@@ -124,6 +126,83 @@ export function getItemsNeedingAttention(items: HomeItem[]): HomeItem[] {
     const remaining = item.typicalLifespanYears - item.estimatedAgeYears;
     return remaining <= 1;
   });
+}
+
+// --------------------------------------------------------------------------
+// Warranty expiration notifications
+// --------------------------------------------------------------------------
+
+const WARRANTY_NOTIFIED_KEY = "handybot:warrantyNotifiedIds";
+
+async function loadWarrantyNotifiedIds(): Promise<Set<string>> {
+  try {
+    const raw = await AsyncStorage.getItem(
+      storagePrefix() + WARRANTY_NOTIFIED_KEY
+    );
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw) as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+async function saveWarrantyNotifiedIds(ids: Set<string>): Promise<void> {
+  try {
+    await AsyncStorage.setItem(
+      storagePrefix() + WARRANTY_NOTIFIED_KEY,
+      JSON.stringify([...ids])
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Send a local notification for each item whose warranty is expiring within
+ * 30 days, if the user hasn't already been notified. Only fires when the user
+ * has already granted permissions and has warranty notifications enabled.
+ */
+export async function notifyExpiringWarranties(
+  items: HomeItem[]
+): Promise<void> {
+  if (!getNotificationPrefsSync().warranties) return;
+
+  await ensureNotificationsConfigured();
+  const { granted } = await Notifications.getPermissionsAsync();
+  if (!granted) return;
+
+  const expiring = items.filter((i) => getWarrantyStatus(i) === "expiring");
+  if (expiring.length === 0) return;
+
+  const notified = await loadWarrantyNotifiedIds();
+  const newItems = expiring.filter((i) => !notified.has(i.id));
+  if (newItems.length === 0) return;
+
+  for (const item of newItems) {
+    const daysLeft = Math.ceil(
+      (item.warrantyExpiration! - Date.now()) / (24 * 60 * 60 * 1000)
+    );
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: `${item.icon} Warranty expiring soon`,
+          body: `${item.name} warranty expires in ${daysLeft} day${daysLeft !== 1 ? "s" : ""}. File any claims before it's too late.`,
+          data: { type: "warranty", itemId: item.id },
+        },
+        trigger: {
+          type: "timeInterval",
+          seconds: 2,
+          repeats: false,
+          channelId: "maintenance",
+        } as unknown as Notifications.NotificationTriggerInput,
+      });
+    } catch {
+      /* best-effort */
+    }
+    notified.add(item.id);
+  }
+
+  await saveWarrantyNotifiedIds(notified);
 }
 
 // --------------------------------------------------------------------------

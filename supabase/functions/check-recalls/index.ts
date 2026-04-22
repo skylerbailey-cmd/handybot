@@ -8,7 +8,7 @@
  * 4. Sends Expo push notifications to affected users
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ---------------------------------------------------------------------------
 // Types

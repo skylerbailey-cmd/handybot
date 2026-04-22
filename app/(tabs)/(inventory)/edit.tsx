@@ -30,7 +30,7 @@ import { addCustomRoom, loadRoomLabels } from "@/lib/rooms";
 import { generateId } from "@/lib/storage";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { HomeItem, ItemCondition } from "@/lib/types";
-import { getRegistrationUrl, openRegistrationPage } from "@/lib/warrantyRegistry";
+import { cacheRegistrationUrl, getRegistrationUrl, openRegistrationPage } from "@/lib/warrantyRegistry";
 
 const CONDITIONS: Array<{ value: ItemCondition; label: string }> = [
   { value: "good", label: "Good" },
@@ -52,6 +52,9 @@ export default function InventoryEditScreen() {
     itemId?: string;
     analyzedData?: string;
     photoUri?: string;
+    prefillName?: string;
+    prefillIcon?: string;
+    prefillCategory?: string;
   }>();
 
   const isNew = !params.itemId;
@@ -193,6 +196,9 @@ export default function InventoryEditScreen() {
         setMaintenanceTips(data.maintenanceTips ?? []);
         setSuggestedReminders(data.suggestedReminders);
         if (data.suggestedRoom) setRoom(data.suggestedRoom);
+        if (data.warrantyRegistrationUrl && data.make) {
+          cacheRegistrationUrl(data.make, data.warrantyRegistrationUrl);
+        }
         if (data.purchaseDateHint) setPurchaseDate(data.purchaseDateHint);
         if (data.warrantyYearsHint && data.purchaseDateHint) {
           const pd = new Date(data.purchaseDateHint);
@@ -205,8 +211,13 @@ export default function InventoryEditScreen() {
       } catch {
         // If parsing fails, leave defaults
       }
+    } else if (params.prefillName) {
+      // New item from suggestion chip
+      setName(params.prefillName);
+      if (params.prefillIcon) setIcon(params.prefillIcon);
+      if (params.prefillCategory) setCategory(params.prefillCategory);
     }
-  }, [params.itemId, params.analyzedData, params.photoUri]);
+  }, [params.itemId, params.analyzedData, params.photoUri, params.prefillName, params.prefillIcon, params.prefillCategory]);
 
   async function handleTakePhoto() {
     if (analyzing) return;
@@ -215,34 +226,116 @@ export default function InventoryEditScreen() {
       if (!picked) return;
       setPhotoUri(picked.uri);
       setPhotoFailed(false);
-      setAnalyzing(true);
+    } catch {
+      /* user cancelled */
+    }
+  }
 
-      const base64 = await readImageAsBase64(picked.uri);
-      const data = await analyzeHomeItem({
-        imageBase64: base64,
-        imageMediaType: "image/jpeg",
-      });
+  async function handleUploadWarranty() {
+    if (analyzing) return;
+    try {
+      const picked = await promptAndPickImage("Warranty card or certificate", { includeFiles: true });
+      if (!picked) return;
+      setWarrantyPhotoUri(picked.uri);
+      setWarrantyPhotoFailed(false);
+    } catch {
+      /* user cancelled */
+    }
+  }
 
-      // Fill in all the fields from the analysis
-      setName(data.name ?? "");
-      setMake(data.make ?? "");
-      setModel(data.model ?? "");
-      setSerialNumber(data.serialNumber ?? "");
-      setYearInstalled(data.yearInstalled ? String(data.yearInstalled) : "");
-      setConditionNotes(data.conditionNotes ?? "");
-      setEstimatedAgeYears(String(data.estimatedAgeYears ?? 0));
-      setTypicalLifespanYears(String(data.typicalLifespanYears ?? 0));
-      setCondition(data.condition ?? "fair");
-      setCategory(data.category ?? "other");
-      setIcon(data.icon ?? "🏠");
-      setMaintenanceTips(data.maintenanceTips ?? []);
-      setSuggestedReminders(data.suggestedReminders);
-      if (data.suggestedRoom && !room) setRoom(data.suggestedRoom);
-      if (data.purchaseDateHint) setPurchaseDate(data.purchaseDateHint);
-      if (data.warrantyYearsHint && data.purchaseDateHint) {
-        const pd = new Date(data.purchaseDateHint);
-        pd.setFullYear(pd.getFullYear() + data.warrantyYearsHint);
-        setWarrantyExpiration(pd.toISOString().split("T")[0]);
+  async function handleUploadReceipt() {
+    if (analyzing) return;
+    try {
+      const picked = await promptAndPickImage("Purchase receipt", { includeFiles: true });
+      if (!picked) return;
+      setReceiptPhotoUri(picked.uri);
+      setReceiptPhotoFailed(false);
+    } catch {
+      /* user cancelled */
+    }
+  }
+
+  const hasAnyImage = !!(photoUri || warrantyPhotoUri || receiptPhotoUri);
+
+  async function handleGenerateWithAI() {
+    if (analyzing || !hasAnyImage) return;
+    setAnalyzing(true);
+    try {
+      // Analyze the item photo if we have one
+      if (photoUri) {
+        const base64 = await readImageAsBase64(photoUri);
+        const data = await analyzeHomeItem({
+          imageBase64: base64,
+          imageMediaType: "image/jpeg",
+        });
+
+        setName(data.name ?? "");
+        setMake(data.make ?? "");
+        setModel(data.model ?? "");
+        setSerialNumber(data.serialNumber ?? "");
+        setYearInstalled(data.yearInstalled ? String(data.yearInstalled) : "");
+        setConditionNotes(data.conditionNotes ?? "");
+        setEstimatedAgeYears(String(data.estimatedAgeYears ?? 0));
+        setTypicalLifespanYears(String(data.typicalLifespanYears ?? 0));
+        setCondition(data.condition ?? "fair");
+        setCategory(data.category ?? "other");
+        setIcon(data.icon ?? "🏠");
+        setMaintenanceTips(data.maintenanceTips ?? []);
+        setSuggestedReminders(data.suggestedReminders);
+        if (data.suggestedRoom && !room) setRoom(data.suggestedRoom);
+        if (data.warrantyRegistrationUrl && data.make) {
+          cacheRegistrationUrl(data.make, data.warrantyRegistrationUrl);
+        }
+        if (data.purchaseDateHint) setPurchaseDate(data.purchaseDateHint);
+        if (data.warrantyYearsHint && data.purchaseDateHint) {
+          const pd = new Date(data.purchaseDateHint);
+          pd.setFullYear(pd.getFullYear() + data.warrantyYearsHint);
+          setWarrantyExpiration(pd.toISOString().split("T")[0]);
+        }
+      }
+
+      // Analyze warranty doc if uploaded
+      if (warrantyPhotoUri) {
+        try {
+          const base64 = await readImageAsBase64(warrantyPhotoUri);
+          const analysis = await analyzeWarrantyDocument({
+            imageBase64: base64,
+            imageMediaType: "image/jpeg",
+            itemName: name.trim() || undefined,
+          });
+          if (analysis.purchaseDate && !purchaseDate)
+            setPurchaseDate(analysis.purchaseDate);
+          if (analysis.warrantyExpiration && !warrantyExpiration)
+            setWarrantyExpiration(analysis.warrantyExpiration);
+          if (analysis.warrantyProvider && !warrantyProvider)
+            setWarrantyProvider(analysis.warrantyProvider);
+          if (analysis.coverageNotes && !warrantyCoverageNotes)
+            setWarrantyCoverageNotes(analysis.coverageNotes);
+        } catch {
+          /* warranty analysis is best-effort */
+        }
+      }
+
+      // Analyze receipt if uploaded
+      if (receiptPhotoUri) {
+        try {
+          const base64 = await readImageAsBase64(receiptPhotoUri);
+          const analysis = await analyzeWarrantyDocument({
+            imageBase64: base64,
+            imageMediaType: "image/jpeg",
+            itemName: name.trim() || undefined,
+          });
+          if (analysis.purchaseDate && !purchaseDate)
+            setPurchaseDate(analysis.purchaseDate);
+          if (analysis.warrantyExpiration && !warrantyExpiration)
+            setWarrantyExpiration(analysis.warrantyExpiration);
+          if (analysis.warrantyProvider && !warrantyProvider)
+            setWarrantyProvider(analysis.warrantyProvider);
+          if (analysis.coverageNotes && !warrantyCoverageNotes)
+            setWarrantyCoverageNotes(analysis.coverageNotes);
+        } catch {
+          /* receipt analysis is best-effort */
+        }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Could not analyze item";
@@ -380,48 +473,102 @@ export default function InventoryEditScreen() {
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
         >
-          {photoUri && !photoFailed ? (
-            <Pressable onPress={handleTakePhoto} disabled={analyzing}>
-              <Image
-                source={{ uri: photoUri }}
-                style={styles.photo}
-                onError={() => setPhotoFailed(true)}
+          {/* Upload section — user can add any combination of photos */}
+          <View style={styles.card}>
+            <Text style={styles.label}>Upload photos</Text>
+            <Text style={[styles.detailLabel, { marginBottom: spacing.md }]}>
+              Add at least one photo, then tap "Generate with AI" to fill in all the details.
+            </Text>
+
+            {/* Item photo */}
+            {photoUri && !photoFailed ? (
+              <Pressable onPress={handleTakePhoto} disabled={analyzing}>
+                <Image
+                  source={{ uri: photoUri }}
+                  style={styles.photo}
+                  onError={() => setPhotoFailed(true)}
+                />
+              </Pressable>
+            ) : (
+              <Pressable
+                onPress={handleTakePhoto}
+                disabled={analyzing}
+                style={styles.uploadBtn}
+              >
+                <Text style={styles.uploadBtnIcon}>📷</Text>
+                <View>
+                  <Text style={styles.uploadBtnText}>Photo of item</Text>
+                  <Text style={styles.uploadBtnHint}>Helps identify brand, model, and condition</Text>
+                </View>
+              </Pressable>
+            )}
+
+            {/* Warranty photo */}
+            {warrantyPhotoUri && !warrantyPhotoFailed ? (
+              <Pressable onPress={handleUploadWarranty} disabled={analyzing}>
+                <Image
+                  source={{ uri: warrantyPhotoUri }}
+                  style={styles.warrantyPhoto}
+                  onError={() => setWarrantyPhotoFailed(true)}
+                />
+              </Pressable>
+            ) : (
+              <Pressable
+                onPress={handleUploadWarranty}
+                disabled={analyzing}
+                style={styles.uploadBtn}
+              >
+                <Text style={styles.uploadBtnIcon}>🛡</Text>
+                <View>
+                  <Text style={styles.uploadBtnText}>Upload warranty</Text>
+                  <Text style={styles.uploadBtnHint}>Extracts coverage dates and provider</Text>
+                </View>
+              </Pressable>
+            )}
+
+            {/* Receipt photo */}
+            {receiptPhotoUri && !receiptPhotoFailed ? (
+              <Pressable onPress={handleUploadReceipt} disabled={analyzing}>
+                <Image
+                  source={{ uri: receiptPhotoUri }}
+                  style={styles.warrantyPhoto}
+                  onError={() => setReceiptPhotoFailed(true)}
+                />
+              </Pressable>
+            ) : (
+              <Pressable
+                onPress={handleUploadReceipt}
+                disabled={analyzing}
+                style={styles.uploadBtn}
+              >
+                <Text style={styles.uploadBtnIcon}>🧾</Text>
+                <View>
+                  <Text style={styles.uploadBtnText}>Upload receipt</Text>
+                  <Text style={styles.uploadBtnHint}>Extracts purchase date and store info</Text>
+                </View>
+              </Pressable>
+            )}
+          </View>
+
+          {/* Generate with AI button */}
+          {hasAnyImage && (
+            <View style={{ position: "relative" }}>
+              <PrimaryButton
+                title={analyzing ? "Generating..." : "Generate with AI"}
+                onPress={handleGenerateWithAI}
+                loading={analyzing}
+                disabled={analyzing}
               />
               {analyzing && (
-                <View style={styles.analyzingOverlay}>
-                  <ActivityIndicator color="#fff" size="large" />
+                <View style={styles.analyzingBanner}>
                   <Animated.Text
-                    style={[styles.analyzingOverlayText, { opacity: fadeAnim }]}
+                    style={[styles.analyzingBannerText, { opacity: fadeAnim }]}
                   >
                     {ANALYZING_MESSAGES[msgIndex]}
                   </Animated.Text>
-                  <View style={styles.analyzingDots}>
-                    {ANALYZING_MESSAGES.map((_, i) => (
-                      <View
-                        key={i}
-                        style={[
-                          styles.analyzingDot,
-                          i === msgIndex && styles.analyzingDotActive,
-                          i < msgIndex && styles.analyzingDotPast,
-                        ]}
-                      />
-                    ))}
-                  </View>
                 </View>
               )}
-            </Pressable>
-          ) : (
-            <Pressable
-              onPress={handleTakePhoto}
-              disabled={analyzing}
-              style={styles.cameraPlaceholder}
-            >
-              <Text style={styles.cameraIcon}>📷</Text>
-              <Text style={styles.cameraTitle}>Take a photo</Text>
-              <Text style={styles.cameraHint}>
-                AI will identify the item and fill in the details
-              </Text>
-            </Pressable>
+            </View>
           )}
 
           {/* Name / Title */}
@@ -555,6 +702,24 @@ export default function InventoryEditScreen() {
             </View>
           </View>
 
+          {/* Recall tracking callout — shown when brand exists but model is missing */}
+          {make.trim().length > 0 && model.trim().length < 3 && (
+            <View style={styles.recallCallout}>
+              <Text style={styles.recallCalloutIcon}>⚠️</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.recallCalloutTitle}>
+                  Add a model number for exact recall matching
+                </Text>
+                <Text style={styles.recallCalloutBody}>
+                  Without a model number, recall results for this item will be marked as "Possible" matches based on brand only — which may include recalls that don't apply to your product. Adding the model number lets us check the exact models listed in each CPSC recall.
+                </Text>
+                <Text style={styles.recallCalloutHint}>
+                  Look for it on the rating plate, a sticker on the back or inside the door, or in the owner's manual.
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* Description / Condition Notes */}
           <View style={styles.card}>
             <Text style={styles.label}>Description</Text>
@@ -687,117 +852,6 @@ export default function InventoryEditScreen() {
                 style={styles.textarea}
               />
             </View>
-            {warrantyPhotoUri && !warrantyPhotoFailed ? (
-              <Image
-                source={{ uri: warrantyPhotoUri }}
-                style={styles.warrantyPhoto}
-                onError={() => setWarrantyPhotoFailed(true)}
-              />
-            ) : warrantyPhotoUri && warrantyPhotoFailed ? (
-              <View style={styles.warrantyPhotoPlaceholder}>
-                <Text style={{ fontSize: 12, color: colors.textSubtle }}>
-                  Warranty photo unavailable
-                </Text>
-              </View>
-            ) : null}
-            <Pressable
-              onPress={async () => {
-                const result = await promptAndPickImage(
-                  "Warranty card or certificate",
-                  { includeFiles: true }
-                );
-                if (!result) return;
-                setWarrantyPhotoUri(result.uri);
-                setAnalyzingWarranty(true);
-                try {
-                  const base64 = await readImageAsBase64(result.uri);
-                  const analysis = await analyzeWarrantyDocument({
-                    imageBase64: base64,
-                    imageMediaType: "image/jpeg",
-                    itemName: name.trim() || undefined,
-                  });
-                  if (analysis.purchaseDate && !purchaseDate)
-                    setPurchaseDate(analysis.purchaseDate);
-                  if (analysis.warrantyExpiration && !warrantyExpiration)
-                    setWarrantyExpiration(analysis.warrantyExpiration);
-                  if (analysis.warrantyProvider && !warrantyProvider)
-                    setWarrantyProvider(analysis.warrantyProvider);
-                  if (analysis.coverageNotes && !warrantyCoverageNotes)
-                    setWarrantyCoverageNotes(analysis.coverageNotes);
-                } catch {
-                  /* analysis is best-effort — photo is still saved */
-                } finally {
-                  setAnalyzingWarranty(false);
-                }
-              }}
-              disabled={analyzingWarranty}
-              style={styles.warrantyPhotoBtn}
-            >
-              <Text style={styles.warrantyPhotoBtnText}>
-                {analyzingWarranty
-                  ? "Analyzing warranty..."
-                  : warrantyPhotoUri
-                    ? "Change Warranty Photo"
-                    : "+ Add Warranty Photo"}
-              </Text>
-            </Pressable>
-
-            {/* Receipt photo */}
-            {receiptPhotoUri && !receiptPhotoFailed ? (
-              <Image
-                source={{ uri: receiptPhotoUri }}
-                style={styles.warrantyPhoto}
-                onError={() => setReceiptPhotoFailed(true)}
-              />
-            ) : receiptPhotoUri && receiptPhotoFailed ? (
-              <View style={styles.warrantyPhotoPlaceholder}>
-                <Text style={{ fontSize: 12, color: colors.textSubtle }}>
-                  Receipt photo unavailable
-                </Text>
-              </View>
-            ) : null}
-            <Pressable
-              onPress={async () => {
-                const result = await promptAndPickImage(
-                  "Purchase receipt",
-                  { includeFiles: true }
-                );
-                if (!result) return;
-                setReceiptPhotoUri(result.uri);
-                setAnalyzingWarranty(true);
-                try {
-                  const base64 = await readImageAsBase64(result.uri);
-                  const analysis = await analyzeWarrantyDocument({
-                    imageBase64: base64,
-                    imageMediaType: "image/jpeg",
-                    itemName: name.trim() || undefined,
-                  });
-                  if (analysis.purchaseDate && !purchaseDate)
-                    setPurchaseDate(analysis.purchaseDate);
-                  if (analysis.warrantyExpiration && !warrantyExpiration)
-                    setWarrantyExpiration(analysis.warrantyExpiration);
-                  if (analysis.warrantyProvider && !warrantyProvider)
-                    setWarrantyProvider(analysis.warrantyProvider);
-                  if (analysis.coverageNotes && !warrantyCoverageNotes)
-                    setWarrantyCoverageNotes(analysis.coverageNotes);
-                } catch {
-                  /* analysis is best-effort — photo is still saved */
-                } finally {
-                  setAnalyzingWarranty(false);
-                }
-              }}
-              disabled={analyzingWarranty}
-              style={styles.warrantyPhotoBtn}
-            >
-              <Text style={styles.warrantyPhotoBtnText}>
-                {analyzingWarranty
-                  ? "Analyzing receipt..."
-                  : receiptPhotoUri
-                    ? "Change Receipt Photo"
-                    : "+ Add Receipt Photo"}
-              </Text>
-            </Pressable>
-
             {/* Warranty Registration */}
             <View style={styles.registrationSection}>
               <View style={styles.registrationHeader}>
@@ -1229,5 +1283,69 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSubtle,
     marginTop: spacing.xs,
+  },
+  uploadBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: "dashed",
+    backgroundColor: colors.background,
+    marginTop: spacing.xs,
+  },
+  uploadBtnIcon: {
+    fontSize: 24,
+  },
+  uploadBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  uploadBtnHint: {
+    fontSize: 12,
+    color: colors.textSubtle,
+    marginTop: 1,
+  },
+  analyzingBanner: {
+    alignItems: "center",
+    marginTop: spacing.sm,
+  },
+  analyzingBannerText: {
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  recallCallout: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    backgroundColor: "#fef3c7",
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "#fcd34d",
+    padding: spacing.md,
+  },
+  recallCalloutIcon: {
+    fontSize: 20,
+    marginTop: 1,
+  },
+  recallCalloutTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#92400e",
+  },
+  recallCalloutBody: {
+    fontSize: 12,
+    color: "#92400e",
+    marginTop: 2,
+    lineHeight: 17,
+  },
+  recallCalloutHint: {
+    fontSize: 11,
+    color: "#b45309",
+    marginTop: spacing.xs,
+    fontStyle: "italic",
   },
 });
