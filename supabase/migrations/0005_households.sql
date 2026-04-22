@@ -67,6 +67,14 @@ ALTER TABLE households ENABLE ROW LEVEL SECURITY;
 ALTER TABLE household_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE household_invites ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY allow_all_v1 ON households FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY allow_all_v1 ON household_members FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY allow_all_v1 ON household_invites FOR ALL USING (true) WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'households' AND policyname = 'allow_all_v1') THEN
+    CREATE POLICY allow_all_v1 ON households FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'household_members' AND policyname = 'allow_all_v1') THEN
+    CREATE POLICY allow_all_v1 ON household_members FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'household_invites' AND policyname = 'allow_all_v1') THEN
+    CREATE POLICY allow_all_v1 ON household_invites FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+END $$;
