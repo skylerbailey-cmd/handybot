@@ -74,6 +74,27 @@ export async function getSession(): Promise<Session | null> {
   return data.session;
 }
 
+/**
+ * Ensure a Supabase session exists. If no session is present, sign in
+ * anonymously so the Claude proxy Edge Function can authenticate the
+ * caller. Anonymous users can later link an email/password to upgrade
+ * to a full account.
+ */
+export async function ensureAnonSession(): Promise<Session | null> {
+  const sb = getSupabase();
+  if (!sb) return null;
+
+  const { data: existing } = await sb.auth.getSession();
+  if (existing.session) return existing.session;
+
+  const { data, error } = await sb.auth.signInAnonymously();
+  if (error) {
+    console.warn("Anonymous sign-in failed", error.message);
+    return null;
+  }
+  return data.session;
+}
+
 export function onAuthStateChange(
   callback: (event: AuthChangeEvent, session: Session | null) => void
 ): (() => void) | undefined {

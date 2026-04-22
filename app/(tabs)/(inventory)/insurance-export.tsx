@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import PrimaryButton from "@/components/PrimaryButton";
-import { estimateReplacementCost } from "@/lib/claude";
+import { ClaudeQuotaError, estimateReplacementCost } from "@/lib/claude";
 import { getActiveHome, type Home } from "@/lib/homes";
 import { loadInventory, updateHomeItem } from "@/lib/homeData";
 import { computeAcv, exportInsurancePdf } from "@/lib/insuranceExport";
@@ -95,7 +95,21 @@ export default function InsuranceExportScreen() {
             replacementCostUsd: est.replacementCostUsd,
           });
         }
-      } catch {
+      } catch (err) {
+        if (err instanceof ClaudeQuotaError) {
+          Alert.alert(
+            "Free limit reached",
+            err.userMessage,
+            [
+              { text: "OK", style: "cancel" },
+              {
+                text: "Upgrade to Pro",
+                onPress: () => router.push("/(tabs)/(settings)"),
+              },
+            ]
+          );
+          break;
+        }
         // Skip items that fail — they'll show $0
       }
       setCostProgress({ done: i + 1, total: needEstimate.length });

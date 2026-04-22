@@ -5,6 +5,7 @@ import {
   Animated,
   KeyboardAvoidingView,
   Platform,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,7 +15,7 @@ import {
 } from "react-native";
 import ImagePickerButton from "@/components/ImagePickerButton";
 import PrimaryButton from "@/components/PrimaryButton";
-import { createRepairPlan } from "@/lib/claude";
+import { ClaudeQuotaError, createRepairPlan } from "@/lib/claude";
 import { readImageAsBase64 } from "@/lib/image";
 import { generateId, upsertIssue } from "@/lib/storage";
 import { colors, radius, spacing } from "@/lib/theme";
@@ -116,6 +117,21 @@ export default function NewIssueScreen() {
       await upsertIssue(issue);
       router.replace(`/(tabs)/(repair)/issue/${id}`);
     } catch (err) {
+      if (err instanceof ClaudeQuotaError) {
+        Alert.alert(
+          "Free limit reached",
+          err.userMessage,
+          [
+            { text: "OK", style: "cancel" },
+            {
+              text: "Upgrade to Pro",
+              onPress: () => router.push("/(tabs)/(settings)"),
+            },
+          ]
+        );
+        setSubmitting(false);
+        return;
+      }
       const msg = err instanceof Error ? err.message : "Something went wrong";
       setError(msg);
       setSubmitting(false);

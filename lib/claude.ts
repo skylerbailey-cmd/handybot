@@ -1,4 +1,11 @@
+// Deploy:
+//   export SUPABASE_DB_PASSWORD='<db password from Supabase dashboard>'
+//   supabase db push
+//   supabase functions deploy claude-proxy
+//   supabase secrets set ANTHROPIC_API_KEY=<new key from Anthropic console>
+
 import { generateId } from "./storage";
+import { getSupabase } from "./supabase";
 import type {
   ChatRequestMessage,
   Difficulty,
@@ -17,8 +24,6 @@ import type {
 
 const MODEL_SONNET = "claude-sonnet-4-6";
 const MODEL_HAIKU = "claude-haiku-4-5-20251001";
-const ANTHROPIC_VERSION = "2023-06-01";
-const ENDPOINT = "https://api.anthropic.com/v1/messages";
 
 // --------------------------------------------------------------------------
 // System prompts
@@ -443,25 +448,43 @@ function toApiMessages(messages: ChatRequestMessage[]): ApiMessage[] {
   });
 }
 
-function getApiKey(): string {
-  const key = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
-  if (!key) {
-    throw new Error(
-      "Missing Anthropic API key. Set EXPO_PUBLIC_ANTHROPIC_API_KEY in .env and restart the dev server."
-    );
+// ---------------------------------------------------------------------------
+// Quota error — call sites can instanceof-check to show paywall UX
+// ---------------------------------------------------------------------------
+
+export class ClaudeQuotaError extends Error {
+  userMessage: string;
+  constructor(userMessage: string) {
+    super(userMessage);
+    this.name = "ClaudeQuotaError";
+    this.userMessage = userMessage;
   }
-  return key;
 }
 
+// ---------------------------------------------------------------------------
+// Proxy transport — all calls go through the Supabase Edge Function
+// ---------------------------------------------------------------------------
+
 async function callAnthropic(body: Record<string, unknown>): Promise<unknown> {
-  const apiKey = getApiKey();
-  const res = await fetch(ENDPOINT, {
+  const supabase = getSupabase();
+  if (!supabase) {
+    throw new Error(
+      "Supabase is not configured. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in .env."
+    );
+  }
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData?.session?.access_token;
+  if (!token) {
+    throw new Error("You must be signed in to use HandyBot.");
+  }
+
+  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const res = await fetch(`${supabaseUrl}/functions/v1/claude-proxy`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": ANTHROPIC_VERSION,
-      "anthropic-dangerous-direct-browser-access": "true",
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(body),
   });
@@ -469,12 +492,20 @@ async function callAnthropic(body: Record<string, unknown>): Promise<unknown> {
   if (!res.ok) {
     const errBody = await res.text();
     let errMsg = errBody;
+    let errCode: string | undefined;
     try {
       const parsed = JSON.parse(errBody);
-      if (parsed?.error?.message) errMsg = parsed.error.message;
+      errCode = parsed?.error;
+      if (parsed?.message) errMsg = parsed.message;
+      else if (parsed?.error?.message) errMsg = parsed.error.message;
     } catch {
       /* ignore */
     }
+
+    if (res.status === 429 && errCode === "quota_exceeded") {
+      throw new ClaudeQuotaError(errMsg);
+    }
+
     throw new Error(`Claude API error (${res.status}): ${errMsg}`);
   }
 

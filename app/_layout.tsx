@@ -4,7 +4,7 @@ import * as Notifications from "expo-notifications";
 import { useEffect, useRef, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { getSession, onAuthStateChange } from "@/lib/auth";
+import { ensureAnonSession, getSession, onAuthStateChange } from "@/lib/auth";
 import { recallSyncOnLaunch } from "@/lib/cloud/recallSync";
 import { clearRecallCache } from "@/lib/recalls";
 import { restoreMissingImages } from "@/lib/cloud/restoreImages";
@@ -24,9 +24,10 @@ export default function RootLayout() {
   const [authChecked, setAuthChecked] = useState(false);
   const [hasSession, setHasSession] = useState(false);
 
-  // Check auth on mount and listen for changes
+  // Ensure a Supabase session exists on every launch. If the user has never
+  // signed in, create an anonymous session so Claude proxy calls work.
   useEffect(() => {
-    getSession().then((s) => {
+    ensureAnonSession().then((s) => {
       setHasSession(!!s);
       setAuthChecked(true);
     }).catch(() => {

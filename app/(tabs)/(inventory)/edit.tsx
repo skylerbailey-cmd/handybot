@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import PrimaryButton from "@/components/PrimaryButton";
 import {
+  ClaudeQuotaError,
   analyzeHomeItem,
   analyzeWarrantyDocument,
 } from "@/lib/claude";
@@ -311,7 +312,8 @@ export default function InventoryEditScreen() {
             setWarrantyProvider(analysis.warrantyProvider);
           if (analysis.coverageNotes && !warrantyCoverageNotes)
             setWarrantyCoverageNotes(analysis.coverageNotes);
-        } catch {
+        } catch (err) {
+          if (err instanceof ClaudeQuotaError) throw err;
           /* warranty analysis is best-effort */
         }
       }
@@ -333,11 +335,26 @@ export default function InventoryEditScreen() {
             setWarrantyProvider(analysis.warrantyProvider);
           if (analysis.coverageNotes && !warrantyCoverageNotes)
             setWarrantyCoverageNotes(analysis.coverageNotes);
-        } catch {
+        } catch (err) {
+          if (err instanceof ClaudeQuotaError) throw err;
           /* receipt analysis is best-effort */
         }
       }
     } catch (err) {
+      if (err instanceof ClaudeQuotaError) {
+        Alert.alert(
+          "Free limit reached",
+          err.userMessage,
+          [
+            { text: "OK", style: "cancel" },
+            {
+              text: "Upgrade to Pro",
+              onPress: () => router.push("/(tabs)/(settings)"),
+            },
+          ]
+        );
+        return;
+      }
       const msg = err instanceof Error ? err.message : "Could not analyze item";
       Alert.alert("Something went wrong", msg);
     } finally {

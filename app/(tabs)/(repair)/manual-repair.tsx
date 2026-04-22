@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import ImagePickerButton from "@/components/ImagePickerButton";
 import PrimaryButton from "@/components/PrimaryButton";
-import { verifyManualRepair } from "@/lib/claude";
+import { ClaudeQuotaError, verifyManualRepair } from "@/lib/claude";
 import { readImageAsBase64 } from "@/lib/image";
 import { generateId, upsertIssue } from "@/lib/storage";
 import { colors, radius, spacing } from "@/lib/theme";
@@ -107,6 +107,21 @@ export default function ManualRepairScreen() {
         router.back();
       }
     } catch (err) {
+      if (err instanceof ClaudeQuotaError) {
+        Alert.alert(
+          "Free limit reached",
+          err.userMessage,
+          [
+            { text: "OK", style: "cancel" },
+            {
+              text: "Upgrade to Pro",
+              onPress: () => router.push("/(tabs)/(settings)"),
+            },
+          ]
+        );
+        setSubmitting(false);
+        return;
+      }
       const msg =
         err instanceof Error ? err.message : "Could not save repair.";
       Alert.alert("Something went wrong", msg);

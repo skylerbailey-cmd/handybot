@@ -1,3 +1,4 @@
+import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -13,7 +14,7 @@ import {
 import ImagePickerButton from "@/components/ImagePickerButton";
 import MessageBubble from "@/components/MessageBubble";
 import TypingIndicator from "@/components/TypingIndicator";
-import { askHandyBot } from "@/lib/claude";
+import { askHandyBot, ClaudeQuotaError } from "@/lib/claude";
 import {
   buildHomeContext,
   clearAskMessages,
@@ -34,6 +35,7 @@ const SUGGESTIONS = [
 ];
 
 export default function AskScreen() {
+  const router = useRouter();
   const [messages, setMessages] = useState<AskMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [pendingImage, setPendingImage] = useState<string | null>(null);
@@ -100,6 +102,20 @@ export default function AskScreen() {
       setMessages(updated);
       await saveAskMessages(updated);
     } catch (err) {
+      if (err instanceof ClaudeQuotaError) {
+        Alert.alert(
+          "Free limit reached",
+          err.userMessage,
+          [
+            { text: "OK", style: "cancel" },
+            {
+              text: "Upgrade to Pro",
+              onPress: () => router.push("/(tabs)/(settings)"),
+            },
+          ]
+        );
+        return;
+      }
       const msg = err instanceof Error ? err.message : "Could not reach HandyBot";
       Alert.alert("Something went wrong", msg);
     } finally {

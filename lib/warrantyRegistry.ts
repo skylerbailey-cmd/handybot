@@ -1,5 +1,6 @@
 import * as Clipboard from "expo-clipboard";
 import { Alert, Linking } from "react-native";
+import { getSupabase } from "./supabase";
 import type { HomeItem } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -7,8 +8,6 @@ import type { HomeItem } from "./types";
 // ---------------------------------------------------------------------------
 
 const MODEL_HAIKU = "claude-haiku-4-5-20251001";
-const ANTHROPIC_VERSION = "2023-06-01";
-const ENDPOINT = "https://api.anthropic.com/v1/messages";
 
 /**
  * Maps normalized manufacturer names to their product registration URLs.
@@ -135,8 +134,8 @@ export function getRegistrationUrl(make: string | undefined): string | undefined
 async function askClaudeForRegistrationUrl(
   item: HomeItem
 ): Promise<string | undefined> {
-  const key = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
-  if (!key) return undefined;
+  const supabase = getSupabase();
+  if (!supabase) return undefined;
 
   const brand = item.make ?? item.name;
   const cacheKey = normalizeBrand(brand);
@@ -152,13 +151,16 @@ async function askClaudeForRegistrationUrl(
     .join("\n");
 
   try {
-    const res = await fetch(ENDPOINT, {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) return undefined;
+
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const res = await fetch(`${supabaseUrl}/functions/v1/claude-proxy`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": ANTHROPIC_VERSION,
-        "anthropic-dangerous-direct-browser-access": "true",
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         model: MODEL_HAIKU,

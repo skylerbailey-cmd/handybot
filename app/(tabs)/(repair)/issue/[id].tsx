@@ -21,6 +21,7 @@ import SegmentedTabs from "@/components/SegmentedTabs";
 import StepHelpModal from "@/components/StepHelpModal";
 import TypingIndicator from "@/components/TypingIndicator";
 import {
+  ClaudeQuotaError,
   applyProposalToPlan,
   applyVerificationResult,
   createRepairPlan,
@@ -316,6 +317,20 @@ export default function IssueWorkspaceScreen() {
         updatedAt: Date.now(),
       });
     } catch (err) {
+      if (err instanceof ClaudeQuotaError) {
+        Alert.alert(
+          "Free limit reached",
+          err.userMessage,
+          [
+            { text: "OK", style: "cancel" },
+            {
+              text: "Upgrade to Pro",
+              onPress: () => router.push("/(tabs)/(settings)"),
+            },
+          ]
+        );
+        return;
+      }
       const msg =
         err instanceof Error ? err.message : "Could not regenerate the plan.";
       setError(msg);
@@ -409,6 +424,20 @@ export default function IssueWorkspaceScreen() {
         setTab("chat");
       }
     } catch (err) {
+      if (err instanceof ClaudeQuotaError) {
+        Alert.alert(
+          "Free limit reached",
+          err.userMessage,
+          [
+            { text: "OK", style: "cancel" },
+            {
+              text: "Upgrade to Pro",
+              onPress: () => router.push("/(tabs)/(settings)"),
+            },
+          ]
+        );
+        return;
+      }
       const msg = err instanceof Error ? err.message : "Could not reach Claude";
       setError(msg);
     } finally {
@@ -451,6 +480,20 @@ export default function IssueWorkspaceScreen() {
         updatedAt: Date.now(),
       });
     } catch (err) {
+      if (err instanceof ClaudeQuotaError) {
+        Alert.alert(
+          "Free limit reached",
+          err.userMessage,
+          [
+            { text: "OK", style: "cancel" },
+            {
+              text: "Upgrade to Pro",
+              onPress: () => router.push("/(tabs)/(settings)"),
+            },
+          ]
+        );
+        return;
+      }
       const msg = err instanceof Error ? err.message : "Could not reach Claude";
       Alert.alert("Couldn't fetch help", msg);
     } finally {
@@ -496,6 +539,20 @@ export default function IssueWorkspaceScreen() {
         );
       }
     } catch (err) {
+      if (err instanceof ClaudeQuotaError) {
+        Alert.alert(
+          "Free limit reached",
+          err.userMessage,
+          [
+            { text: "OK", style: "cancel" },
+            {
+              text: "Upgrade to Pro",
+              onPress: () => router.push("/(tabs)/(settings)"),
+            },
+          ]
+        );
+        return;
+      }
       const msg =
         err instanceof Error ? err.message : "Could not verify the repair.";
       Alert.alert("Verify failed", msg);
