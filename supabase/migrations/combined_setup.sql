@@ -438,3 +438,16 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.accept_household_invite(TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.accept_household_invite(TEXT) TO authenticated;
+
+-- 0010: Lowercase invite emails trigger
+CREATE OR REPLACE FUNCTION public.lowercase_invite_email()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  NEW.email := lower(NEW.email);
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER lowercase_invite_email_trg
+  BEFORE INSERT OR UPDATE ON public.household_invites
+  FOR EACH ROW
+  EXECUTE FUNCTION public.lowercase_invite_email();
