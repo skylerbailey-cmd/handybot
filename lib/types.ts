@@ -222,6 +222,14 @@ export interface Reminder {
   createdAt: number;
 }
 
+export type ExpenseCategory =
+  | "repairs"
+  | "maintenance"
+  | "supplies"
+  | "improvements"
+  | "auto_travel"
+  | "other";
+
 export interface Issue {
   id: string;
   title: string;
@@ -233,6 +241,12 @@ export interface Issue {
   coverImageUri?: string;
   plan: RepairPlan;
   messages: ChatMessage[];
+  /** Schedule E expense tracking (landlord tier) */
+  expenseAmountUsd?: number;
+  expenseCategory?: ExpenseCategory;
+  expenseDate?: number;
+  receiptPhotoUri?: string;
+  receiptVendor?: string;
 }
 
 export interface User {

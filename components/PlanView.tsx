@@ -1,6 +1,7 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import ChecklistRow from "./ChecklistRow";
 import DifficultyBadge from "./DifficultyBadge";
+import ExpenseSection from "./ExpenseSection";
 import InteractiveStepper from "./InteractiveStepper";
 import RiskCard from "./RiskCard";
 import SuggestedRemindersCard from "./SuggestedRemindersCard";
@@ -25,6 +26,7 @@ interface Props {
   verifying?: boolean;
   onRegenerate?: () => void;
   regenerating?: boolean;
+  onUpdateExpense?: (fields: Partial<Issue>) => void;
 }
 
 export default function PlanView({
@@ -37,6 +39,7 @@ export default function PlanView({
   verifying,
   onRegenerate,
   regenerating,
+  onUpdateExpense,
 }: Props) {
   const { plan } = issue;
   const stepsTotal = plan.steps.length;
@@ -227,6 +230,10 @@ export default function PlanView({
             </Text>
           </Pressable>
         </View>
+      )}
+
+      {onUpdateExpense && (
+        <ExpenseSection issue={issue} onUpdate={onUpdateExpense} />
       )}
 
       <View style={{ height: spacing.xxl }} />

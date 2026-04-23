@@ -603,6 +603,10 @@ export default function IssueWorkspaceScreen() {
             verifying={verifying}
             onRegenerate={confirmRegenerate}
             regenerating={regenerating}
+            onUpdateExpense={(fields) => {
+              if (!issue) return;
+              persist({ ...issue, ...fields, updatedAt: Date.now() });
+            }}
           />
         ) : (
           <View style={{ flex: 1 }}>

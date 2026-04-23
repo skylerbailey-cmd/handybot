@@ -1711,3 +1711,90 @@ export async function estimateReplacementCost(args: {
     rationale: String(raw.rationale ?? "").trim(),
   };
 }
+
+// --------------------------------------------------------------------------
+// Receipt OCR (Schedule E expense tracking)
+// --------------------------------------------------------------------------
+
+const EXTRACT_RECEIPT_TOOL = {
+  name: "extract_receipt_data",
+  description:
+    "Extract the total amount, vendor name, and date from a photo of a receipt.",
+  input_schema: {
+    type: "object",
+    properties: {
+      total_usd: {
+        type: "number",
+        description: "Total amount on the receipt in USD. 0 if not readable.",
+      },
+      vendor_name: {
+        type: "string",
+        description:
+          "Store or vendor name from the receipt. Empty string if not readable.",
+      },
+      date_iso: {
+        type: "string",
+        description:
+          "Date on the receipt in YYYY-MM-DD format. Empty string if not readable.",
+      },
+    },
+    required: ["total_usd", "vendor_name", "date_iso"],
+  },
+} as const;
+
+export interface ReceiptData {
+  totalUsd: number;
+  vendorName: string;
+  dateIso: string;
+}
+
+export async function extractReceiptData(args: {
+  imageBase64: string;
+  imageMediaType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+}): Promise<ReceiptData> {
+  const data = (await callAnthropic({
+    model: MODEL_HAIKU,
+    max_tokens: 300,
+    system: [
+      {
+        type: "text",
+        text: "Extract the total amount, store/vendor name, and date from this receipt photo. You MUST call the extract_receipt_data tool. Do not reply with plain text.",
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    tools: [EXTRACT_RECEIPT_TOOL],
+    tool_choice: { type: "tool", name: "extract_receipt_data" },
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: args.imageMediaType ?? "image/jpeg",
+              data: args.imageBase64,
+            },
+          },
+          { type: "text", text: "Please extract the receipt details." },
+        ],
+      },
+    ],
+  })) as ClaudeResponse;
+
+  const toolUse = data.content.find(
+    (b): b is { type: "tool_use"; name: string; input: unknown } =>
+      b.type === "tool_use" && b.name === "extract_receipt_data"
+  );
+
+  if (!toolUse) {
+    return { totalUsd: 0, vendorName: "", dateIso: "" };
+  }
+
+  const raw = toolUse.input as Record<string, unknown>;
+  return {
+    totalUsd: Math.max(0, Math.round(Number(raw.total_usd) * 100) / 100),
+    vendorName: String(raw.vendor_name ?? "").trim(),
+    dateIso: String(raw.date_iso ?? "").trim(),
+  };
+}
