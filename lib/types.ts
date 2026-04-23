@@ -300,6 +300,33 @@ export interface HomeItem {
 }
 
 // --------------------------------------------------------------------------
+// Vendor contacts
+// --------------------------------------------------------------------------
+
+export type VendorSpecialty =
+  | "plumbing"
+  | "electrical"
+  | "hvac"
+  | "roofing"
+  | "appliance"
+  | "handyman"
+  | "landscaping"
+  | "other";
+
+export interface Vendor {
+  id: string;
+  homeId: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  specialty: VendorSpecialty;
+  hourlyRateUsd?: number;
+  notes?: string;
+  lastUsedAt?: number;
+  createdAt: number;
+}
+
+// --------------------------------------------------------------------------
 // Ask HandyBot (general Q&A not tied to a specific repair)
 // --------------------------------------------------------------------------
 
