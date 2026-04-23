@@ -65,8 +65,17 @@ export async function uploadLocalImageIfNeeded(
       return localUri;
     }
 
-    const { data } = supabase.storage.from("photos").getPublicUrl(path);
-    return data.publicUrl ?? localUri;
+    // Bucket is private — use a long-lived signed URL (7 days).
+    // The URL will be persisted in the row; on next sync it's already https
+    // and won't be re-uploaded.
+    const { data: signed, error: signErr } = await supabase.storage
+      .from("photos")
+      .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 days
+    if (signErr || !signed?.signedUrl) {
+      console.warn("photo sign failed", signErr?.message);
+      return localUri;
+    }
+    return signed.signedUrl;
   } catch (err) {
     console.warn("photo upload threw", err);
     return localUri;

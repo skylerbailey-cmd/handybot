@@ -1,19 +1,42 @@
 import { getSupabase } from "../supabase";
 
 /**
- * Permanently delete every trace of a user from Supabase:
+ * Permanently delete every trace of the currently authenticated user
+ * from Supabase:
  *   1. All files in the `photos` bucket under their user_id folder.
  *   2. Their row in `public.users`, which cascades to `homes`, `issues`,
  *      `reminders`, `home_items`, and `enabled_templates` via the foreign
  *      keys defined in the schema.
  *
+ * The user_id is derived from the authenticated session (via
+ * users.auth_user_id = auth.uid()), NOT from a caller-supplied argument,
+ * so a compromised client cannot delete another user's data.
+ *
  * Best-effort: if the storage sweep fails, we still proceed to the DB
  * delete so the user isn't left half-wiped. Any orphan storage objects
  * can be cleaned up by a scheduled job later.
  */
-export async function deleteUserCloudData(userId: string): Promise<void> {
+export async function deleteUserCloudData(_userId?: string): Promise<void> {
   const supabase = getSupabase();
   if (!supabase) return;
+
+  // Resolve the actual user_id from the auth session — never trust caller.
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+  if (!authUser) throw new Error("Not authenticated.");
+
+  const { data: userRow } = await supabase
+    .from("users")
+    .select("id")
+    .eq("auth_user_id", authUser.id)
+    .maybeSingle();
+
+  if (!userRow) {
+    throw new Error("No linked user found for this account.");
+  }
+
+  const userId = userRow.id as string;
 
   // 1. List and delete every object in photos/{userId}/.
   try {
