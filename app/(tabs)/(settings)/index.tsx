@@ -834,6 +834,22 @@ export default function SettingsScreen() {
       </Pressable>
 
       <Pressable
+        onPress={() => router.push("/(tabs)/(settings)/business")}
+        style={styles.card}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+          <Text style={{ fontSize: 20 }}>🧾</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>Invoicing & business info</Text>
+            <Text style={[styles.cardBody, { marginTop: 2 }]}>
+              Your business profile for invoice generation
+            </Text>
+          </View>
+          <Text style={{ fontSize: 18, color: colors.textSubtle }}>›</Text>
+        </View>
+      </Pressable>
+
+      <Pressable
         onPress={() => router.push("/(tabs)/(settings)/expenses")}
         style={styles.card}
       >

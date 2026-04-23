@@ -35,9 +35,15 @@ import {
   getIssue,
   upsertIssue,
 } from "@/lib/storage";
+import {
+  loadBusinessProfile,
+  isProfileComplete,
+} from "@/lib/businessProfile";
+import { getActiveHome } from "@/lib/homes";
+import { shareInvoicePdf } from "@/lib/invoiceGenerator";
 import { showPaywallAlert } from "@/lib/showPaywall";
 import { colors, radius, spacing } from "@/lib/theme";
-import { canUseVerification } from "@/lib/tiers";
+import { canUseVerification, isAtLeast } from "@/lib/tiers";
 import type {
   ChatMessage,
   ChatRequestMessage,
@@ -213,26 +219,109 @@ export default function IssueWorkspaceScreen() {
           options: [
             "Cancel",
             toggleLabel,
+            "Generate invoice",
             "Regenerate plan",
             "Delete repair",
           ],
-          destructiveButtonIndex: 3,
+          destructiveButtonIndex: 4,
           cancelButtonIndex: 0,
         },
         (idx) => {
           if (idx === 1) toggleResolved();
-          if (idx === 2) confirmRegenerate();
-          if (idx === 3) handleDelete();
+          if (idx === 2) handleGenerateInvoice();
+          if (idx === 3) confirmRegenerate();
+          if (idx === 4) handleDelete();
         }
       );
     } else {
       Alert.alert(issue.title || "Repair", undefined, [
         { text: "Cancel", style: "cancel" },
         { text: toggleLabel, onPress: toggleResolved },
+        { text: "Generate invoice", onPress: handleGenerateInvoice },
         { text: "Regenerate plan", onPress: confirmRegenerate },
         { text: "Delete", style: "destructive", onPress: handleDelete },
       ]);
     }
+  }
+
+  async function handleGenerateInvoice() {
+    if (!issue) return;
+
+    if (!isAtLeast("landlord")) {
+      showPaywallAlert("Invoice generator is a Landlord feature.");
+      return;
+    }
+
+    const profile = await loadBusinessProfile();
+    if (!isProfileComplete(profile)) {
+      Alert.alert(
+        "Set up your business profile first",
+        "Add your business name, address, and rates before generating invoices.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Set up now",
+            onPress: () => router.push("/(tabs)/(settings)/business"),
+          },
+        ]
+      );
+      return;
+    }
+
+    // Prompt for invoice details
+    Alert.prompt(
+      "Generate invoice",
+      "Who is this invoice for?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Next",
+          onPress: (recipient: string | undefined) => {
+            if (!recipient?.trim()) return;
+            Alert.prompt(
+              "Hours worked",
+              "How many hours did this repair take?",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Generate",
+                  onPress: async (hoursStr: string | undefined) => {
+                    const hours = parseFloat(hoursStr ?? "0") || 0;
+                    try {
+                      const home = await getActiveHome();
+                      await shareInvoicePdf({
+                        issue,
+                        recipient: recipient!.trim(),
+                        hoursWorked: hours,
+                        profile,
+                        home,
+                      });
+                    } catch (err) {
+                      const msg =
+                        err instanceof Error
+                          ? err.message
+                          : "Could not generate invoice.";
+                      if (
+                        !msg.includes("cancelled") &&
+                        !msg.includes("canceled")
+                      ) {
+                        Alert.alert("Invoice failed", msg);
+                      }
+                    }
+                  },
+                },
+              ],
+              "plain-text",
+              "",
+              "decimal-pad"
+            );
+          },
+        },
+      ],
+      "plain-text",
+      "",
+      "default"
+    );
   }
 
   async function toggleResolved() {
