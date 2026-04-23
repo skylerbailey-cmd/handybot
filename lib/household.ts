@@ -22,6 +22,9 @@ export interface HouseholdMember {
   /** Populated from the users table when loading members. */
   name?: string;
   email?: string;
+  /** Kids-safe mode flags. */
+  isMinor?: boolean;
+  minorParentUserId?: string;
 }
 
 export interface HouseholdInvite {
@@ -180,7 +183,31 @@ export async function loadHouseholdMembers(
     role: row.role as "owner" | "member",
     joinedAt: row.joined_at as number,
     name: (row.users as Record<string, unknown>)?.name as string | undefined,
+    isMinor: (row.is_minor as boolean) ?? false,
+    minorParentUserId: (row.minor_parent_user_id as string) ?? undefined,
   }));
+}
+
+/**
+ * Toggle whether a member is a minor. Sets the parent user who will
+ * receive safety notifications.
+ */
+export async function setMemberMinorStatus(
+  memberId: string,
+  isMinor: boolean,
+  parentUserId?: string
+): Promise<boolean> {
+  const supabase = getSupabase();
+  if (!supabase) return false;
+
+  const { error } = await supabase
+    .from("household_members")
+    .update({
+      is_minor: isMinor,
+      minor_parent_user_id: isMinor ? parentUserId ?? null : null,
+    })
+    .eq("id", memberId);
+  return !error;
 }
 
 /**

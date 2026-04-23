@@ -2,8 +2,11 @@
  * Supabase Edge Function: claude-proxy
  *
  * Proxies Anthropic Messages API requests so the API key stays server-side.
- * Authenticates callers via Supabase Auth, enforces free-tier quotas, and
- * logs token usage for cost tracking.
+ * Authenticates callers via Supabase Auth, enforces free-tier quotas, logs
+ * token usage, and enforces kids-safe mode for minor household members.
+ *
+ * DEPLOY REMINDER: after modifying this file, run:
+ *   supabase functions deploy claude-proxy
  */
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -35,6 +38,66 @@ const CORS_HEADERS = {
 };
 
 // ---------------------------------------------------------------------------
+// Kids-safe system prompts (server-enforced, cannot be bypassed by client)
+// ---------------------------------------------------------------------------
+
+const KIDS_SAFE_ASK_PROMPT = `You are HandyBot Junior — a friendly, encouraging home-science guide for young learners. You help kids understand how their home works without putting them at risk.
+
+HARD RULES — you must NEVER give step-by-step repair instructions involving:
+- Live electrical work (120V+), outlets, breakers, or wiring
+- Gas lines, gas appliances, or pilot lights
+- Chemicals that can mix dangerously (bleach + ammonia, acids, etc.)
+- Ladders above 6 feet or working on roofs
+- Power tools beyond a cordless drill (no saws, grinders, etc.)
+- Plumbing behind walls or under slabs
+
+When any of these topics come up, respond warmly:
+"That one needs a grown-up — can you show this to your parent and I'll walk both of you through it?"
+
+What you CAN do:
+- Explain how things work (how does a toilet flush? what does a circuit breaker do?)
+- Encourage observation and diagnosis (what do you see? what sounds does it make?)
+- Teach safe, hands-on skills: tightening a loose screw, changing a light bulb (not overhead), using a plunger, checking a smoke detector button
+- Celebrate curiosity and build confidence
+
+Tone: friendly, patient, uses simple language and real-world analogies.`;
+
+const KIDS_SAFE_CHAT_PROMPT = `You are HandyBot Junior helping a young learner follow along with a home repair project. An adult has already created this repair plan — your job is to explain what's happening in kid-friendly terms and keep them safe.
+
+HARD RULES — NEVER instruct the minor to:
+- Touch electrical panels, outlets, or wires
+- Handle gas valves or gas appliances
+- Use chemicals, solvents, or adhesives beyond basic soap/water
+- Climb ladders above 6 feet or get on the roof
+- Operate power tools (saws, grinders, nail guns, etc.)
+- Work on plumbing behind walls
+
+If they ask about doing any of these, say:
+"That step is for the grown-up — you can watch and learn, but let them handle it!"
+
+You CAN:
+- Explain what each step does and why
+- Point out cool details in photos
+- Suggest safe helper tasks (hand tools to the adult, hold the flashlight, etc.)
+- Celebrate their interest in learning`;
+
+const HAZARD_CLASSIFIER_TOOL = {
+  name: "classify_hazard",
+  description: "Classify whether the conversation involves a physical hazard category.",
+  input_schema: {
+    type: "object",
+    properties: {
+      category: {
+        type: "string",
+        enum: ["electrical", "gas", "heights", "chemical", "safe"],
+        description: "The primary hazard category, or 'safe' if none.",
+      },
+    },
+    required: ["category"],
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -57,6 +120,49 @@ function classifyAction(
     if (tool.name && PLAN_TOOLS.has(tool.name)) return "plan";
   }
   return "ask";
+}
+
+/**
+ * Extract the user's question text from the messages array.
+ */
+function extractQuestionText(body: Record<string, unknown>): string {
+  const messages = body.messages as Array<{
+    role?: string;
+    content?: unknown;
+  }> | undefined;
+  if (!Array.isArray(messages)) return "";
+  // Find the last user message
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.role !== "user") continue;
+    if (typeof msg.content === "string") return msg.content;
+    if (Array.isArray(msg.content)) {
+      const textBlock = msg.content.find(
+        (b: { type?: string }) => b.type === "text"
+      ) as { text?: string } | undefined;
+      if (textBlock?.text) return textBlock.text;
+    }
+  }
+  return "";
+}
+
+/**
+ * Replace or inject the kids-safe system prompt into the request body.
+ * Determines which prompt to use based on whether tools are present
+ * (chat with plan context vs general ask).
+ */
+function enforceKidsSafePrompt(body: Record<string, unknown>): void {
+  const hasTools = Array.isArray(body.tools) && (body.tools as unknown[]).length > 0;
+  const safePrompt = hasTools ? KIDS_SAFE_CHAT_PROMPT : KIDS_SAFE_ASK_PROMPT;
+
+  // Replace the system prompt entirely
+  body.system = [
+    {
+      type: "text",
+      text: safePrompt,
+      cache_control: { type: "ephemeral" },
+    },
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -155,6 +261,24 @@ Deno.serve(async (req) => {
     }
   }
 
+  // 3b. Check if caller is a minor household member
+  let isMinor = false;
+  let minorParentUserId: string | null = null;
+
+  const { data: memberRow } = await serviceClient
+    .from("household_members")
+    .select("is_minor, minor_parent_user_id")
+    .eq("user_id", user.id)
+    .eq("is_minor", true)
+    .maybeSingle();
+
+  if (memberRow) {
+    isMinor = true;
+    minorParentUserId = (memberRow.minor_parent_user_id as string) ?? null;
+    // Server-enforce kids-safe system prompt — client cannot bypass
+    enforceKidsSafePrompt(body);
+  }
+
   // 4. Record the action (before forwarding — so the count is up-to-date
   //    even if the Anthropic call fails)
   await serviceClient.from("usage_actions").insert({
@@ -208,7 +332,19 @@ Deno.serve(async (req) => {
     }
   }
 
-  // 7. Return Anthropic's response as-is
+  // 7. If minor, run hazard classifier and notify parent (best-effort)
+  if (isMinor && minorParentUserId && anthropicRes.ok) {
+    classifyAndNotifyParent({
+      serviceClient,
+      anthropicKey,
+      questionText: extractQuestionText(body),
+      responseBody,
+      minorUserId: user.id,
+      parentUserId: minorParentUserId,
+    }).catch(() => {});
+  }
+
+  // 8. Return Anthropic's response as-is
   return new Response(responseBody, {
     status: anthropicRes.status,
     headers: {
@@ -217,3 +353,76 @@ Deno.serve(async (req) => {
     },
   });
 });
+
+// ---------------------------------------------------------------------------
+// Hazard classification + parent notification (best-effort, non-blocking)
+// ---------------------------------------------------------------------------
+
+async function classifyAndNotifyParent(args: {
+  serviceClient: ReturnType<typeof createClient>;
+  anthropicKey: string;
+  questionText: string;
+  responseBody: string;
+  minorUserId: string;
+  parentUserId: string;
+}): Promise<void> {
+  const { serviceClient, anthropicKey, questionText, responseBody, minorUserId, parentUserId } = args;
+
+  // Extract the assistant's response text
+  let assistantText = "";
+  try {
+    const parsed = JSON.parse(responseBody);
+    if (Array.isArray(parsed.content)) {
+      assistantText = parsed.content
+        .filter((b: { type: string }) => b.type === "text")
+        .map((b: { text: string }) => b.text)
+        .join(" ");
+    }
+  } catch {
+    return;
+  }
+
+  // Run a fast Haiku classifier
+  const classifierRes = await fetch(ANTHROPIC_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": anthropicKey,
+      "anthropic-version": ANTHROPIC_VERSION,
+    },
+    body: JSON.stringify({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 100,
+      system: "Classify whether this Q&A involves a physical hazard. Call the classify_hazard tool.",
+      tools: [HAZARD_CLASSIFIER_TOOL],
+      tool_choice: { type: "tool", name: "classify_hazard" },
+      messages: [
+        {
+          role: "user",
+          content: `Question: ${questionText}\n\nAnswer: ${assistantText.slice(0, 500)}`,
+        },
+      ],
+    }),
+  });
+
+  if (!classifierRes.ok) return;
+
+  const classifierData = await classifierRes.json();
+  const toolUse = classifierData?.content?.find(
+    (b: { type: string; name?: string }) =>
+      b.type === "tool_use" && b.name === "classify_hazard"
+  );
+  if (!toolUse) return;
+
+  const category = (toolUse.input as { category?: string })?.category ?? "safe";
+  if (category === "safe") return;
+
+  // Insert parent notification — trigger handles push
+  await serviceClient.from("parent_notifications").insert({
+    parent_user_id: parentUserId,
+    minor_user_id: minorUserId,
+    question: questionText.slice(0, 1000),
+    response: assistantText.slice(0, 1000),
+    category,
+  });
+}

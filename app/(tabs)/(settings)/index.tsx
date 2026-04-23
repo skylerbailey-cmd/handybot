@@ -46,6 +46,7 @@ import {
   leaveHousehold,
   checkMyInvites,
   acceptInvite,
+  setMemberMinorStatus,
   type Household,
   type HouseholdMember,
   type HouseholdInvite,
@@ -58,7 +59,7 @@ import {
 } from "@/lib/notificationPrefs";
 import { requestNotificationPermissions } from "@/lib/reminders";
 import { showPaywallAlert } from "@/lib/showPaywall";
-import { canUseCloudSync, canExportImport, canUseInsurancePdf } from "@/lib/tiers";
+import { canUseCloudSync, canExportImport, canUseInsurancePdf, getTierLimits } from "@/lib/tiers";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { User } from "@/lib/types";
 
@@ -955,11 +956,59 @@ export default function SettingsScreen() {
                     <Text style={styles.familyMemberName}>
                       {m.name ?? "Member"}
                       {m.userId === user?.id ? " (you)" : ""}
+                      {m.isMinor ? " (minor)" : ""}
                     </Text>
                     <Text style={styles.familyMemberRole}>
                       {m.role === "owner" ? "Owner" : "Member"}
                     </Text>
                   </View>
+                  {household.ownerId === user?.id &&
+                    m.userId !== user?.id &&
+                    getTierLimits().kidsSafeMode && (
+                      <Pressable
+                        onPress={async () => {
+                          if (m.isMinor) {
+                            await setMemberMinorStatus(m.id, false);
+                            await refreshHousehold();
+                          } else {
+                            // Pick which adult gets notified
+                            const adults = members.filter(
+                              (a) => !a.isMinor && a.userId !== m.userId
+                            );
+                            if (adults.length === 0) {
+                              Alert.alert(
+                                "No adults",
+                                "There must be at least one non-minor member to receive safety alerts."
+                              );
+                              return;
+                            }
+                            // Use the owner as default parent
+                            const parentId = adults.find(
+                              (a) => a.role === "owner"
+                            )?.userId ?? adults[0].userId;
+                            await setMemberMinorStatus(m.id, true, parentId);
+                            await refreshHousehold();
+                            Alert.alert(
+                              "Minor mode enabled",
+                              `${m.name ?? "This member"} will get kid-safe responses. Safety alerts will be sent to the household owner.`
+                            );
+                          }
+                        }}
+                        style={[
+                          styles.minorToggle,
+                          m.isMinor && styles.minorToggleActive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.minorToggleText,
+                            m.isMinor && styles.minorToggleTextActive,
+                          ]}
+                        >
+                          {m.isMinor ? "Minor" : "Set minor"}
+                        </Text>
+                      </Pressable>
+                    )}
                   {household.ownerId === user?.id &&
                     m.userId !== user?.id && (
                       <Pressable
@@ -972,6 +1021,20 @@ export default function SettingsScreen() {
                     )}
                 </View>
               ))}
+              {/* Safety reviews link for parents */}
+              {household.ownerId === user?.id &&
+                members.some((m) => m.isMinor) && (
+                  <Pressable
+                    onPress={() =>
+                      router.push("/(tabs)/(settings)/minor-activity")
+                    }
+                    style={styles.safetyReviewLink}
+                  >
+                    <Text style={styles.safetyReviewLinkText}>
+                      View safety reviews →
+                    </Text>
+                  </Pressable>
+                )}
             </View>
 
             {/* Pending invites */}
@@ -1363,6 +1426,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: "#dc2626",
+  },
+  minorToggle: {
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  minorToggleActive: {
+    backgroundColor: "#fef3c7",
+    borderColor: "#fde68a",
+  },
+  minorToggleText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.textMuted,
+  },
+  minorToggleTextActive: {
+    color: "#92400e",
+  },
+  safetyReviewLink: {
+    paddingVertical: spacing.sm,
+    paddingTop: spacing.md,
+  },
+  safetyReviewLinkText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.brand,
   },
   familyAcceptBtn: {
     backgroundColor: colors.brand,

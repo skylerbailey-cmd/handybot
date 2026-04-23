@@ -15,6 +15,7 @@ export default function SettingsStack() {
       <Stack.Screen name="index" options={{ title: "Settings" }} />
       <Stack.Screen name="homes" options={{ title: "My Homes" }} />
       <Stack.Screen name="activity" options={{ title: "Activity Log" }} />
+      <Stack.Screen name="minor-activity" options={{ title: "Safety Reviews" }} />
       <Stack.Screen name="business" options={{ title: "Invoicing & Business Info" }} />
       <Stack.Screen name="expenses" options={{ title: "Expenses & Taxes" }} />
       <Stack.Screen name="vendors/index" options={{ title: "Vendor Book" }} />
