@@ -26,6 +26,7 @@ import {
   loadReminders,
 } from "@/lib/reminders";
 import { loadRoomLabels } from "@/lib/rooms";
+import { canAddReminder } from "@/lib/tiers";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { HomeItem, Reminder } from "@/lib/types";
 import { usePhotoUri } from "@/hooks/usePhotoUri";
@@ -246,36 +247,42 @@ export default function InventoryScreen() {
     const SIXTY_DAYS = 60 * 24 * 60 * 60 * 1000;
     const now = Date.now();
 
-    for (const item of warrantyItems) {
-      if (!item.warrantyExpiration) continue;
-      const timeLeft = item.warrantyExpiration - now;
-      if (timeLeft <= 0 || timeLeft > SIXTY_DAYS) continue;
+    (async () => {
+      for (const item of warrantyItems) {
+        if (!item.warrantyExpiration) continue;
+        const timeLeft = item.warrantyExpiration - now;
+        if (timeLeft <= 0 || timeLeft > SIXTY_DAYS) continue;
 
-      const reminderTitle = `Warranty expiring: ${item.name}`;
-      if (existingTitles.has(reminderTitle)) continue;
+        const reminderTitle = `Warranty expiring: ${item.name}`;
+        if (existingTitles.has(reminderTitle)) continue;
 
-      // Auto-create a one-time reminder 7 days before expiration
-      const sevenDaysBefore = new Date(item.warrantyExpiration - 7 * 24 * 60 * 60 * 1000);
-      const startDate = sevenDaysBefore.getTime() > now ? sevenDaysBefore : new Date(now + 60000);
+        // Silently skip if reminder limit reached
+        const reminderCheck = await canAddReminder();
+        if (!reminderCheck.allowed) break;
 
-      createCustomReminder({
-        title: reminderTitle,
-        description: `The warranty on your ${item.name}${item.warrantyProvider ? ` (${item.warrantyProvider})` : ""} expires ${new Date(item.warrantyExpiration).toLocaleDateString()}. Review coverage and file any claims before it lapses.`,
-        icon: "📋",
-        category: "general",
-        frequencyDays: 365, // won't repeat meaningfully — one-shot
-        startDate,
-        sourceIssueId: item.id,
-        room: item.room || undefined,
-      }).then(() => {
-        refresh();
-      }).catch(() => {
-        /* best-effort */
-      });
+        const sevenDaysBefore = new Date(item.warrantyExpiration - 7 * 24 * 60 * 60 * 1000);
+        const startDate = sevenDaysBefore.getTime() > now ? sevenDaysBefore : new Date(now + 60000);
 
-      // Only auto-create one at a time to avoid spamming
-      break;
-    }
+        try {
+          await createCustomReminder({
+            title: reminderTitle,
+            description: `The warranty on your ${item.name}${item.warrantyProvider ? ` (${item.warrantyProvider})` : ""} expires ${new Date(item.warrantyExpiration).toLocaleDateString()}. Review coverage and file any claims before it lapses.`,
+            icon: "📋",
+            category: "general",
+            frequencyDays: 365, // won't repeat meaningfully — one-shot
+            startDate,
+            sourceIssueId: item.id,
+            room: item.room || undefined,
+          });
+          refresh();
+        } catch {
+          /* best-effort */
+        }
+
+        // Only auto-create one at a time to avoid spamming
+        break;
+      }
+    })();
   }, [warrantyItems, reminders]);
 
   // First item (in render order) that has smart reminders — auto-expand its section

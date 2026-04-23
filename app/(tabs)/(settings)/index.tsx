@@ -57,6 +57,8 @@ import {
   type NotificationPrefs,
 } from "@/lib/notificationPrefs";
 import { requestNotificationPermissions } from "@/lib/reminders";
+import { showPaywallAlert } from "@/lib/showPaywall";
+import { canUseCloudSync, canExportImport, canUseInsurancePdf } from "@/lib/tiers";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { User } from "@/lib/types";
 
@@ -169,9 +171,16 @@ export default function SettingsScreen() {
       return;
     }
 
-    // Turning ON — require a Supabase session first. If the user isn't
-    // signed in, send them to the login screen. When they come back
-    // (Settings re-mounts), they can tap "Turn on" again.
+    // Turning ON — check tier first
+    const syncCheck = canUseCloudSync();
+    if (!syncCheck.allowed) {
+      showPaywallAlert(syncCheck.message);
+      return;
+    }
+
+    // Require a Supabase session. If the user isn't signed in, send them
+    // to the login screen. When they come back (Settings re-mounts),
+    // they can tap "Turn on" again.
     const session = await getSession();
     if (!session) {
       router.push("/login");
@@ -233,6 +242,11 @@ export default function SettingsScreen() {
 
   async function handleExportHome() {
     if (exportBusy) return;
+    const exportCheck = canExportImport();
+    if (!exportCheck.allowed) {
+      showPaywallAlert(exportCheck.message);
+      return;
+    }
     setExportBusy(true);
     setExportStatus(null);
     try {
@@ -255,6 +269,11 @@ export default function SettingsScreen() {
 
   async function handleImportHome() {
     if (importBusy) return;
+    const importCheck = canExportImport();
+    if (!importCheck.allowed) {
+      showPaywallAlert(importCheck.message);
+      return;
+    }
     setImportBusy(true);
     setImportStatus(null);
     try {
@@ -792,7 +811,14 @@ export default function SettingsScreen() {
       </View>
 
       <Pressable
-        onPress={() => router.push("/(tabs)/(inventory)/insurance-export")}
+        onPress={() => {
+          const pdfCheck = canUseInsurancePdf();
+          if (!pdfCheck.allowed) {
+            showPaywallAlert(pdfCheck.message);
+            return;
+          }
+          router.push("/(tabs)/(inventory)/insurance-export");
+        }}
         style={styles.card}
       >
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>

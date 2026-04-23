@@ -13,6 +13,7 @@ import {
 import PrimaryButton from "@/components/PrimaryButton";
 import { ClaudeQuotaError, estimateReplacementCost } from "@/lib/claude";
 import { getActiveHome, type Home } from "@/lib/homes";
+import { showPaywallAlert } from "@/lib/showPaywall";
 import { loadInventory, updateHomeItem } from "@/lib/homeData";
 import { computeAcv, exportInsurancePdf } from "@/lib/insuranceExport";
 import { ensureUser } from "@/lib/storage";
@@ -97,17 +98,7 @@ export default function InsuranceExportScreen() {
         }
       } catch (err) {
         if (err instanceof ClaudeQuotaError) {
-          Alert.alert(
-            "Free limit reached",
-            err.userMessage,
-            [
-              { text: "OK", style: "cancel" },
-              {
-                text: "Upgrade to Pro",
-                onPress: () => router.push("/(tabs)/(settings)"),
-              },
-            ]
-          );
+          showPaywallAlert(err.userMessage);
           break;
         }
         // Skip items that fail — they'll show $0

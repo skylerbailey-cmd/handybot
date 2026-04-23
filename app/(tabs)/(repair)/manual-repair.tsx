@@ -16,8 +16,10 @@ import ImagePickerButton from "@/components/ImagePickerButton";
 import PrimaryButton from "@/components/PrimaryButton";
 import { ClaudeQuotaError, verifyManualRepair } from "@/lib/claude";
 import { readImageAsBase64 } from "@/lib/image";
+import { showPaywallAlert } from "@/lib/showPaywall";
 import { generateId, upsertIssue } from "@/lib/storage";
 import { colors, radius, spacing } from "@/lib/theme";
+import { isFreeUser } from "@/lib/tiers";
 import type { Issue, RepairPlan } from "@/lib/types";
 
 export default function ManualRepairScreen() {
@@ -43,7 +45,8 @@ export default function ManualRepairScreen() {
       let verifyFeedback = "";
 
       // If both before and after photos are provided, run AI verification
-      if (hasPhotos) {
+      // (skip for free-tier users — they can still log the repair)
+      if (hasPhotos && !isFreeUser()) {
         const beforeBase64 = await readImageAsBase64(beforePhoto!);
         const afterBase64 = await readImageAsBase64(afterPhoto!);
         const result = await verifyManualRepair({
@@ -108,17 +111,7 @@ export default function ManualRepairScreen() {
       }
     } catch (err) {
       if (err instanceof ClaudeQuotaError) {
-        Alert.alert(
-          "Free limit reached",
-          err.userMessage,
-          [
-            { text: "OK", style: "cancel" },
-            {
-              text: "Upgrade to Pro",
-              onPress: () => router.push("/(tabs)/(settings)"),
-            },
-          ]
-        );
+        showPaywallAlert(err.userMessage);
         setSubmitting(false);
         return;
       }

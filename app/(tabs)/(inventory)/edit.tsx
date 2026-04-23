@@ -28,6 +28,7 @@ import {
 } from "@/lib/homeData";
 import { promptAndPickImage, readImageAsBase64 } from "@/lib/image";
 import { addCustomRoom, loadRoomLabels } from "@/lib/rooms";
+import { showPaywallAlert } from "@/lib/showPaywall";
 import { generateId } from "@/lib/storage";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { HomeItem, ItemCondition } from "@/lib/types";
@@ -347,17 +348,7 @@ export default function InventoryEditScreen() {
       }
     } catch (err) {
       if (err instanceof ClaudeQuotaError) {
-        Alert.alert(
-          "Free limit reached",
-          err.userMessage,
-          [
-            { text: "OK", style: "cancel" },
-            {
-              text: "Upgrade to Pro",
-              onPress: () => router.push("/(tabs)/(settings)"),
-            },
-          ]
-        );
+        showPaywallAlert(err.userMessage);
         return;
       }
       const msg = err instanceof Error ? err.message : "Could not analyze item";

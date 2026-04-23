@@ -19,6 +19,8 @@ import {
   switchHome,
 } from "@/lib/homes";
 import { generateId } from "@/lib/storage";
+import { showPaywallAlert } from "@/lib/showPaywall";
+import { canAddHome } from "@/lib/tiers";
 import { colors, radius, spacing } from "@/lib/theme";
 
 const HOME_ICONS = ["🏠", "🏡", "🏢", "🏘", "🏗", "🏛", "⛺", "🏖", "🏔", "🛖"];
@@ -53,6 +55,11 @@ export default function HomesScreen() {
     const name = newName.trim();
     if (!name) {
       Alert.alert("Name required", "Give this home a name.");
+      return;
+    }
+    const check = await canAddHome();
+    if (!check.allowed) {
+      showPaywallAlert(check.message);
       return;
     }
     const home: Home = {

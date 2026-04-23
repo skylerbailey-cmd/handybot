@@ -3,6 +3,8 @@ import { useMemo, useState } from "react";
 import { Alert } from "react-native";
 import ReminderForm, { type ReminderFormValues } from "@/components/ReminderForm";
 import { createCustomReminder } from "@/lib/reminders";
+import { showPaywallAlert } from "@/lib/showPaywall";
+import { canAddReminder } from "@/lib/tiers";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -32,6 +34,11 @@ export default function NewReminderScreen() {
 
   async function handleSubmit(values: ReminderFormValues) {
     if (submitting) return;
+    const check = await canAddReminder();
+    if (!check.allowed) {
+      showPaywallAlert(check.message);
+      return;
+    }
     setSubmitting(true);
     try {
       await createCustomReminder({

@@ -35,7 +35,9 @@ import {
   getIssue,
   upsertIssue,
 } from "@/lib/storage";
+import { showPaywallAlert } from "@/lib/showPaywall";
 import { colors, radius, spacing } from "@/lib/theme";
+import { canUseVerification } from "@/lib/tiers";
 import type {
   ChatMessage,
   ChatRequestMessage,
@@ -318,17 +320,7 @@ export default function IssueWorkspaceScreen() {
       });
     } catch (err) {
       if (err instanceof ClaudeQuotaError) {
-        Alert.alert(
-          "Free limit reached",
-          err.userMessage,
-          [
-            { text: "OK", style: "cancel" },
-            {
-              text: "Upgrade to Pro",
-              onPress: () => router.push("/(tabs)/(settings)"),
-            },
-          ]
-        );
+        showPaywallAlert(err.userMessage);
         return;
       }
       const msg =
@@ -425,17 +417,7 @@ export default function IssueWorkspaceScreen() {
       }
     } catch (err) {
       if (err instanceof ClaudeQuotaError) {
-        Alert.alert(
-          "Free limit reached",
-          err.userMessage,
-          [
-            { text: "OK", style: "cancel" },
-            {
-              text: "Upgrade to Pro",
-              onPress: () => router.push("/(tabs)/(settings)"),
-            },
-          ]
-        );
+        showPaywallAlert(err.userMessage);
         return;
       }
       const msg = err instanceof Error ? err.message : "Could not reach Claude";
@@ -481,17 +463,7 @@ export default function IssueWorkspaceScreen() {
       });
     } catch (err) {
       if (err instanceof ClaudeQuotaError) {
-        Alert.alert(
-          "Free limit reached",
-          err.userMessage,
-          [
-            { text: "OK", style: "cancel" },
-            {
-              text: "Upgrade to Pro",
-              onPress: () => router.push("/(tabs)/(settings)"),
-            },
-          ]
-        );
+        showPaywallAlert(err.userMessage);
         return;
       }
       const msg = err instanceof Error ? err.message : "Could not reach Claude";
@@ -503,6 +475,11 @@ export default function IssueWorkspaceScreen() {
 
   async function handleRequestVerify() {
     if (!issue || verifying) return;
+    const verifyCheck = canUseVerification();
+    if (!verifyCheck.allowed) {
+      showPaywallAlert(verifyCheck.message);
+      return;
+    }
     setError(null);
     try {
       const result = await promptAndPickImage("Upload a photo of your finished work");
@@ -540,17 +517,7 @@ export default function IssueWorkspaceScreen() {
       }
     } catch (err) {
       if (err instanceof ClaudeQuotaError) {
-        Alert.alert(
-          "Free limit reached",
-          err.userMessage,
-          [
-            { text: "OK", style: "cancel" },
-            {
-              text: "Upgrade to Pro",
-              onPress: () => router.push("/(tabs)/(settings)"),
-            },
-          ]
-        );
+        showPaywallAlert(err.userMessage);
         return;
       }
       const msg =

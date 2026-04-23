@@ -6,6 +6,8 @@ import {
   loadReminders,
   requestNotificationPermissions,
 } from "@/lib/reminders";
+import { showPaywallAlert } from "@/lib/showPaywall";
+import { canAddReminder } from "@/lib/tiers";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { SuggestedReminder } from "@/lib/types";
 
@@ -66,6 +68,11 @@ export default function SuggestedRemindersCard({
   }
 
   async function addSuggestion(s: SuggestedReminder) {
+    const check = await canAddReminder();
+    if (!check.allowed) {
+      showPaywallAlert(check.message);
+      return;
+    }
     const startDate = new Date(Date.now() + s.frequencyDays * DAY_MS);
     await createReminderFromSuggestion({
       suggestion: s,

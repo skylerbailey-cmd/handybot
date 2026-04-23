@@ -21,6 +21,7 @@ import {
   loadAskMessages,
   saveAskMessages,
 } from "@/lib/homeData";
+import { showPaywallAlert } from "@/lib/showPaywall";
 import { readImageAsBase64 } from "@/lib/image";
 import { generateId } from "@/lib/storage";
 import { colors, radius, spacing } from "@/lib/theme";
@@ -103,17 +104,7 @@ export default function AskScreen() {
       await saveAskMessages(updated);
     } catch (err) {
       if (err instanceof ClaudeQuotaError) {
-        Alert.alert(
-          "Free limit reached",
-          err.userMessage,
-          [
-            { text: "OK", style: "cancel" },
-            {
-              text: "Upgrade to Pro",
-              onPress: () => router.push("/(tabs)/(settings)"),
-            },
-          ]
-        );
+        showPaywallAlert(err.userMessage);
         return;
       }
       const msg = err instanceof Error ? err.message : "Could not reach HandyBot";

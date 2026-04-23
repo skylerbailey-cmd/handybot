@@ -32,6 +32,8 @@ import {
   snoozeReminder,
 } from "@/lib/reminders";
 import { MAINTENANCE_TEMPLATES } from "@/lib/reminderTemplates";
+import { showPaywallAlert } from "@/lib/showPaywall";
+import { canAddReminder } from "@/lib/tiers";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { MaintenanceTemplate, Reminder } from "@/lib/types";
 
@@ -106,6 +108,11 @@ export default function RemindersScreen() {
   }
 
   async function addTemplateWithStart(template: MaintenanceTemplate) {
+    const check = await canAddReminder();
+    if (!check.allowed) {
+      showPaywallAlert(check.message);
+      return;
+    }
     // Default start: one frequency-period from now.
     const start = new Date(Date.now() + template.frequencyDays * DAY_MS);
     await createReminderFromTemplate(template, start);

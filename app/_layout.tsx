@@ -12,6 +12,7 @@ import { ensureMultiHomeSetup } from "@/lib/homes";
 import { registerPushToken } from "@/lib/pushToken";
 import { loadNotificationPrefs } from "@/lib/notificationPrefs";
 import { ensureNotificationsConfigured } from "@/lib/reminders";
+import { hydrateTier, shouldShowPaywallNudge } from "@/lib/tiers";
 import { seedDemoData } from "@/lib/seedData";
 import { hydrateSubscription } from "@/lib/subscription";
 
@@ -48,6 +49,19 @@ export default function RootLayout() {
     }
   }, [authChecked, navReady, hasSession, router]);
 
+  // Periodic paywall nudge for free users
+  useEffect(() => {
+    if (!navReady || !hasSession) return;
+    shouldShowPaywallNudge().then((show) => {
+      if (show) {
+        // Small delay so the home screen renders first
+        setTimeout(() => {
+          try { router.push("/paywall"); } catch { /* ignore */ }
+        }, 800);
+      }
+    });
+  }, [navReady, hasSession, router]);
+
   useEffect(() => {
     ensureMultiHomeSetup()
       .then(() => seedDemoData())
@@ -56,6 +70,7 @@ export default function RootLayout() {
     // One-time: clear stale recall cache so the tighter matching logic runs fresh.
     clearRecallCache().catch(() => {});
     loadNotificationPrefs().catch(() => {});
+    hydrateTier().catch(() => {});
     hydrateSubscription()
       .then(async () => {
         await restoreMissingImages();
@@ -120,6 +135,10 @@ export default function RootLayout() {
           <Stack.Screen
             name="reset-password"
             options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="paywall"
+            options={{ presentation: "modal", animation: "slide_from_bottom", headerShown: true }}
           />
         </Stack>
       </SafeAreaProvider>
