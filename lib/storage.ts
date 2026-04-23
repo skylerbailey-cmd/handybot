@@ -3,6 +3,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { syncIssues, syncUser } from "./cloud/sync";
 import { storagePrefix } from "./homes";
 import { isCloudBackupEnabled } from "./subscription";
+import { logActivity } from "./activityLog";
 import type { Issue, User } from "./types";
 
 function issuesKey() {
@@ -67,20 +68,44 @@ export async function getIssue(id: string): Promise<Issue | undefined> {
 export async function upsertIssue(issue: Issue): Promise<void> {
   const all = await loadIssues();
   const idx = all.findIndex((i) => i.id === issue.id);
+  const isNew = idx < 0;
   if (idx >= 0) {
     all[idx] = issue;
-    // Keep most-recently-updated at the top.
     all.sort((a, b) => b.updatedAt - a.updatedAt);
   } else {
     all.unshift(issue);
   }
   await saveIssues(all);
+  try {
+    const action =
+      isNew
+        ? "created"
+        : issue.status === "completed" || issue.status === "verified"
+          ? "completed"
+          : "updated";
+    logActivity({
+      action,
+      entityType: "issue",
+      entityId: issue.id,
+      entityTitle: issue.title,
+    });
+  } catch { /* ignore */ }
 }
 
 export async function deleteIssue(id: string): Promise<void> {
   const all = await loadIssues();
   const target = all.find((i) => i.id === id);
   await saveIssues(all.filter((i) => i.id !== id));
+  try {
+    if (target) {
+      logActivity({
+        action: "deleted",
+        entityType: "issue",
+        entityId: id,
+        entityTitle: target.title,
+      });
+    }
+  } catch { /* ignore */ }
 
   // Best-effort cleanup of any image files associated with this issue.
   if (target) {

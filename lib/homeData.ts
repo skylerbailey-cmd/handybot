@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
+import { logActivity } from "./activityLog";
 import { syncInventory } from "./cloud/sync";
 import { getActiveHome, storagePrefix } from "./homes";
 import { getNotificationPrefsSync } from "./notificationPrefs";
@@ -82,11 +83,20 @@ export async function addHomeItem(item: HomeItem): Promise<void> {
   const all = await loadInventory();
   all.unshift(item);
   await saveInventory(all);
+  try {
+    logActivity({ action: "created", entityType: "home_item", entityId: item.id, entityTitle: item.name });
+  } catch { /* ignore */ }
 }
 
 export async function removeHomeItem(itemId: string): Promise<void> {
-  const all = (await loadInventory()).filter((i) => i.id !== itemId);
-  await saveInventory(all);
+  const all = await loadInventory();
+  const target = all.find((i) => i.id === itemId);
+  await saveInventory(all.filter((i) => i.id !== itemId));
+  try {
+    if (target) {
+      logActivity({ action: "deleted", entityType: "home_item", entityId: itemId, entityTitle: target.name });
+    }
+  } catch { /* ignore */ }
 }
 
 export async function updateHomeItem(
@@ -98,6 +108,9 @@ export async function updateHomeItem(
   if (idx < 0) return undefined;
   all[idx] = { ...all[idx], ...updates, updatedAt: Date.now() };
   await saveInventory(all);
+  try {
+    logActivity({ action: "updated", entityType: "home_item", entityId: itemId, entityTitle: all[idx].name });
+  } catch { /* ignore */ }
   return all[idx];
 }
 

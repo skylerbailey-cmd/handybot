@@ -314,6 +314,22 @@ export interface HomeItem {
 }
 
 // --------------------------------------------------------------------------
+// Activity log
+// --------------------------------------------------------------------------
+
+export interface ActivityEvent {
+  id: string;
+  homeId: string;
+  actorUserId: string;
+  actorName: string;
+  action: "created" | "updated" | "completed" | "deleted";
+  entityType: "issue" | "reminder" | "home_item" | "expense";
+  entityId: string;
+  entityTitle: string;
+  createdAt: number;
+}
+
+// --------------------------------------------------------------------------
 // Vendor contacts
 // --------------------------------------------------------------------------
 

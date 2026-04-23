@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import { logActivity } from "./activityLog";
 import { syncReminders } from "./cloud/sync";
 import { storagePrefix } from "./homes";
 import { generateId } from "./storage";
@@ -294,6 +295,9 @@ export async function deleteReminder(reminderId: string): Promise<void> {
   await cancelLocalNotification(reminder.notificationId);
   const all = (await loadReminders()).filter((r) => r.id !== reminderId);
   await saveReminders(all);
+  try {
+    logActivity({ action: "deleted", entityType: "reminder", entityId: reminderId, entityTitle: reminder.title });
+  } catch { /* ignore */ }
 }
 
 /**
@@ -313,6 +317,9 @@ export async function markReminderDone(
     : undefined;
   const final = { ...updated, notificationId };
   await upsertReminder(final);
+  try {
+    logActivity({ action: "completed", entityType: "reminder", entityId: reminderId, entityTitle: reminder.title });
+  } catch { /* ignore */ }
   return final;
 }
 
@@ -372,6 +379,9 @@ export async function createCustomReminder(args: {
   const notificationId = await scheduleLocalNotification(base);
   const reminder = { ...base, notificationId };
   await upsertReminder(reminder);
+  try {
+    logActivity({ action: "created", entityType: "reminder", entityId: reminder.id, entityTitle: reminder.title });
+  } catch { /* ignore */ }
   return reminder;
 }
 

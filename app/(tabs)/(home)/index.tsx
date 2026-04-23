@@ -10,6 +10,7 @@ import {
   Text,
   View,
 } from "react-native";
+import ActivityFeed from "@/components/ActivityFeed";
 import UpcomingRemindersCard from "@/components/UpcomingRemindersCard";
 import { getActiveHome, type Home } from "@/lib/homes";
 import {
@@ -24,8 +25,10 @@ import {
   loadReminders,
   markReminderDone,
 } from "@/lib/reminders";
+import { loadMyHousehold, loadHouseholdMembers } from "@/lib/household";
 import { loadIssues } from "@/lib/storage";
 import { colors, formatMoney, radius, spacing } from "@/lib/theme";
+import { getTierLimits } from "@/lib/tiers";
 import type { HomeItem, Issue, Reminder } from "@/lib/types";
 
 const CONDITION_LABEL: Record<string, string> = {
@@ -50,6 +53,7 @@ export default function HomeDashboard() {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [recalls, setRecalls] = useState<RecallAlert[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [showActivityFeed, setShowActivityFeed] = useState(false);
 
   const refresh = useCallback(async () => {
     const [home, inv, iss, rem] = await Promise.all([
@@ -65,6 +69,17 @@ export default function HomeDashboard() {
     if (inv.length > 0) {
       checkForRecalls(inv).then(setRecalls).catch(() => {});
       notifyExpiringWarranties(inv).catch(() => {});
+    }
+    // Check if we should show the activity feed (family+ with >1 member)
+    if (getTierLimits().familyMembers > 0) {
+      loadMyHousehold().then((hh) => {
+        if (!hh) { setShowActivityFeed(false); return; }
+        loadHouseholdMembers(hh.id).then((members) => {
+          setShowActivityFeed(members.length > 1);
+        });
+      }).catch(() => setShowActivityFeed(false));
+    } else {
+      setShowActivityFeed(false);
     }
   }, []);
 
@@ -421,6 +436,8 @@ export default function HomeDashboard() {
           reminders={upcomingReminders}
           onMarkDone={handleReminderDone}
         />
+
+        {showActivityFeed && <ActivityFeed />}
 
         {/* Repair Summary */}
         <Pressable
