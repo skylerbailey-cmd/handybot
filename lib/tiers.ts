@@ -46,7 +46,7 @@ export const TIERS: Record<TierSlug, TierInfo> = {
     monthlyPrice: 0,
     yearlyPrice: 0,
     limits: {
-      aiRepairsPerMonth: 1,
+      aiRepairsPerMonth: 3,
       askQuestionsPerMonth: 10,
       maxHomes: 1,
       maxAiInventoryItems: 3,
