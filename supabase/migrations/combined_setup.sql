@@ -365,7 +365,7 @@ CREATE POLICY hm_delete ON public.household_members FOR DELETE
 CREATE POLICY hi_select ON public.household_invites FOR SELECT
   TO authenticated
   USING (invited_by IN (SELECT public.authed_user_ids())
-         OR email = (SELECT email FROM auth.users WHERE id = auth.uid()));
+         OR email = (auth.jwt() ->> 'email'));
 CREATE POLICY hi_insert ON public.household_invites FOR INSERT
   TO authenticated
   WITH CHECK (invited_by IN (SELECT public.authed_user_ids())
@@ -373,8 +373,8 @@ CREATE POLICY hi_insert ON public.household_invites FOR INSERT
                   WHERE user_id IN (SELECT public.authed_user_ids())));
 CREATE POLICY hi_update ON public.household_invites FOR UPDATE
   TO authenticated
-  USING (email = (SELECT email FROM auth.users WHERE id = auth.uid()))
-  WITH CHECK (email = (SELECT email FROM auth.users WHERE id = auth.uid()));
+  USING (email = (auth.jwt() ->> 'email'))
+  WITH CHECK (email = (auth.jwt() ->> 'email'));
 CREATE POLICY hi_delete ON public.household_invites FOR DELETE
   TO authenticated
   USING (invited_by IN (SELECT public.authed_user_ids()));
@@ -408,3 +408,33 @@ CREATE POLICY photos_owner ON storage.objects FOR ALL
          AND (storage.foldername(name))[1] IN (SELECT public.authed_user_ids()))
   WITH CHECK (bucket_id = 'photos'
               AND (storage.foldername(name))[1] IN (SELECT public.authed_user_ids()));
+
+-- 0008: Accept household invite RPC
+CREATE OR REPLACE FUNCTION public.accept_household_invite(p_invite_id TEXT)
+RETURNS BOOLEAN LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_user_id TEXT; v_caller_email TEXT; v_invite RECORD; v_existing INT;
+BEGIN
+  SELECT id INTO v_user_id FROM public.users WHERE auth_user_id = auth.uid();
+  IF v_user_id IS NULL THEN RETURN FALSE; END IF;
+  v_caller_email := lower(auth.jwt() ->> 'email');
+  IF v_caller_email IS NULL OR v_caller_email = '' THEN RETURN FALSE; END IF;
+  SELECT * INTO v_invite FROM public.household_invites WHERE id = p_invite_id FOR UPDATE;
+  IF NOT FOUND THEN RETURN FALSE; END IF;
+  IF v_invite.status <> 'pending' THEN RETURN FALSE; END IF;
+  IF lower(v_invite.email) <> v_caller_email THEN RETURN FALSE; END IF;
+  IF v_invite.expires_at < (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT THEN
+    UPDATE public.household_invites SET status = 'expired' WHERE id = p_invite_id;
+    RETURN FALSE;
+  END IF;
+  SELECT COUNT(*) INTO v_existing FROM public.household_members WHERE user_id = v_user_id;
+  IF v_existing > 0 THEN RETURN FALSE; END IF;
+  INSERT INTO public.household_members (id, household_id, user_id, role, joined_at)
+    VALUES (encode(gen_random_bytes(8), 'hex'), v_invite.household_id, v_user_id, 'member',
+            (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT);
+  UPDATE public.household_invites SET status = 'accepted' WHERE id = p_invite_id;
+  RETURN TRUE;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.accept_household_invite(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.accept_household_invite(TEXT) TO authenticated;

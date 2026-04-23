@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { usePhotoUri } from "@/hooks/usePhotoUri";
 import { promptAndPickImage } from "@/lib/image";
 import { colors, radius, spacing } from "@/lib/theme";
 
@@ -26,6 +27,7 @@ export default function ImagePickerButton({
   helperText = "Tap to take a photo or pick one from your library",
   variant = "dropzone",
 }: Props) {
+  const resolvedValue = usePhotoUri(value ?? undefined);
   const [busy, setBusy] = useState(false);
 
   async function open() {
@@ -41,10 +43,10 @@ export default function ImagePickerButton({
     }
   }
 
-  if (value) {
+  if (resolvedValue) {
     return (
       <View style={variant === "dropzone" ? styles.previewWrap : styles.previewWrapCompact}>
-        <Image source={{ uri: value }} style={styles.previewImage} />
+        <Image source={{ uri: resolvedValue }} style={styles.previewImage} />
         <Pressable
           onPress={() => onChange(null)}
           style={styles.removeBtn}

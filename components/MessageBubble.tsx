@@ -1,15 +1,17 @@
 import { Image, StyleSheet, Text, View } from "react-native";
+import { usePhotoUri } from "@/hooks/usePhotoUri";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { ChatMessage } from "@/lib/types";
 
 export default function MessageBubble({ message }: { message: ChatMessage }) {
+  const resolvedImage = usePhotoUri(message.imageUri);
   const isUser = message.role === "user";
   return (
     <View style={[styles.row, isUser ? styles.rowRight : styles.rowLeft]}>
       <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAssistant]}>
-        {message.imageUri && (
+        {resolvedImage && (
           <Image
-            source={{ uri: message.imageUri }}
+            source={{ uri: resolvedImage }}
             style={styles.image}
             resizeMode="cover"
           />
@@ -19,7 +21,7 @@ export default function MessageBubble({ message }: { message: ChatMessage }) {
             style={[
               styles.text,
               isUser ? styles.textUser : styles.textAssistant,
-              message.imageUri ? styles.textWithImage : null,
+              resolvedImage ? styles.textWithImage : null,
             ]}
           >
             {message.text}

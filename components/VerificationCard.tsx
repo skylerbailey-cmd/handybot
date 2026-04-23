@@ -1,4 +1,5 @@
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { usePhotoUri } from "@/hooks/usePhotoUri";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { VerificationResult } from "@/lib/types";
 
@@ -24,6 +25,7 @@ export default function VerificationCard({
   result,
   onRequestVerify,
 }: Props) {
+  const resolvedPhoto = usePhotoUri(result?.photoUri);
   if (verifying) {
     return (
       <View style={[styles.card, styles.cardNeutral]}>
@@ -72,8 +74,8 @@ export default function VerificationCard({
           Verified — nice work!
         </Text>
         <Text style={[styles.body, { color: "#047857" }]}>{result.feedback}</Text>
-        {result.photoUri && (
-          <Image source={{ uri: result.photoUri }} style={styles.photo} />
+        {resolvedPhoto && (
+          <Image source={{ uri: resolvedPhoto }} style={styles.photo} />
         )}
         <Pressable
           onPress={onRequestVerify}
@@ -98,8 +100,8 @@ export default function VerificationCard({
         Not quite yet — let&apos;s fix it
       </Text>
       <Text style={[styles.body, { color: "#9a3412" }]}>{result.feedback}</Text>
-      {result.photoUri && (
-        <Image source={{ uri: result.photoUri }} style={styles.photo} />
+      {resolvedPhoto && (
+        <Image source={{ uri: resolvedPhoto }} style={styles.photo} />
       )}
       {result.fixStepsAdded ? (
         <View style={styles.fixNotice}>

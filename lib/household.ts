@@ -354,60 +354,24 @@ export async function checkMyInvites(): Promise<HouseholdInvite[]> {
 }
 
 /**
- * Accept a household invite. Adds the current user as a member and marks
- * the invite as accepted.
+ * Accept a household invite via server-side RPC. The RPC validates the
+ * invite, checks email match and expiry, and inserts the member row with
+ * SECURITY DEFINER privileges (bypassing the owner-only hm_insert policy).
  */
 export async function acceptInvite(inviteId: string): Promise<boolean> {
   const supabase = getSupabase();
   if (!supabase) return false;
 
-  const user = await ensureUser();
+  const { data, error } = await supabase.rpc("accept_household_invite", {
+    p_invite_id: inviteId,
+  });
 
-  // Load the invite
-  const { data: invite, error: invErr } = await supabase
-    .from("household_invites")
-    .select("*")
-    .eq("id", inviteId)
-    .eq("status", "pending")
-    .maybeSingle();
-
-  if (invErr || !invite) return false;
-
-  // Check it hasn't expired
-  if ((invite.expires_at as number) < Date.now()) {
-    await supabase
-      .from("household_invites")
-      .update({ status: "expired" })
-      .eq("id", inviteId);
+  if (error) {
+    console.warn("acceptInvite RPC failed", error.message);
     return false;
   }
 
-  // Check user isn't already in a household
-  const existing = await loadMyHousehold();
-  if (existing) return false;
-
-  // Add as member
-  const { error: memErr } = await supabase
-    .from("household_members")
-    .insert({
-      id: generateId(),
-      household_id: invite.household_id,
-      user_id: user.id,
-      role: "member",
-      joined_at: Date.now(),
-    });
-  if (memErr) {
-    console.warn("acceptInvite member insert failed", memErr.message);
-    return false;
-  }
-
-  // Mark invite as accepted
-  await supabase
-    .from("household_invites")
-    .update({ status: "accepted" })
-    .eq("id", inviteId);
-
-  return true;
+  return data === true;
 }
 
 // ---------------------------------------------------------------------------

@@ -28,6 +28,7 @@ import {
 import { loadRoomLabels } from "@/lib/rooms";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { HomeItem, Reminder } from "@/lib/types";
+import { usePhotoUri } from "@/hooks/usePhotoUri";
 import { getRegistrationUrl, openRegistrationPage } from "@/lib/warrantyRegistry";
 
 const CONDITION_LABEL: Record<string, string> = {
@@ -539,24 +540,14 @@ export default function InventoryScreen() {
                     pressed && { opacity: 0.9 },
                   ]}
                 >
-                  {item.photoUri && !failedImages.has(item.id) ? (
-                    <Image
-                      source={{ uri: item.photoUri }}
-                      style={styles.itemPhoto}
-                      onError={() =>
-                        setFailedImages((prev) => new Set(prev).add(item.id))
-                      }
-                    />
-                  ) : !item.photoUri ? null : (
-                    <View style={styles.itemPhotoPlaceholder}>
-                      <Text style={styles.itemPhotoPlaceholderText}>
-                        {item.icon || "📷"}
-                      </Text>
-                      <Text style={styles.itemPhotoPlaceholderHint}>
-                        Photo unavailable
-                      </Text>
-                    </View>
-                  )}
+                  <ItemPhoto
+                    uri={item.photoUri}
+                    failed={failedImages.has(item.id)}
+                    onError={() =>
+                      setFailedImages((prev) => new Set(prev).add(item.id))
+                    }
+                    icon={item.icon}
+                  />
                   <View style={styles.itemBody}>
                     <View style={styles.itemHeader}>
                       <Text style={styles.itemIcon}>{item.icon}</Text>
@@ -875,6 +866,36 @@ export default function InventoryScreen() {
       </ScrollView>
 
     </>
+  );
+}
+
+function ItemPhoto({
+  uri,
+  failed,
+  onError,
+  icon,
+}: {
+  uri?: string;
+  failed: boolean;
+  onError: () => void;
+  icon?: string;
+}) {
+  const resolved = usePhotoUri(uri);
+  if (resolved && !failed) {
+    return (
+      <Image
+        source={{ uri: resolved }}
+        style={styles.itemPhoto}
+        onError={onError}
+      />
+    );
+  }
+  if (!resolved) return null;
+  return (
+    <View style={styles.itemPhotoPlaceholder}>
+      <Text style={styles.itemPhotoPlaceholderText}>{icon || "📷"}</Text>
+      <Text style={styles.itemPhotoPlaceholderHint}>Photo unavailable</Text>
+    </View>
   );
 }
 

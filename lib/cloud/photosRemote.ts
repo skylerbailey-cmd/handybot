@@ -2,27 +2,48 @@ import * as FileSystem from "expo-file-system/legacy";
 import { getSupabase } from "../supabase";
 
 /**
- * Upload a local image file to Supabase Storage and return the public URL.
+ * Extract a storage path from a legacy Supabase signed/public URL.
+ * URLs look like:
+ *   https://xxx.supabase.co/storage/v1/object/public/photos/userId/file.jpg
+ *   https://xxx.supabase.co/storage/v1/object/sign/photos/userId/file.jpg?token=...
+ * We want to extract "userId/file.jpg".
+ */
+function extractPathFromUrl(url: string): string | null {
+  // Match /photos/ followed by the path
+  const match = url.match(/\/photos\/(.+?)(?:\?|$)/);
+  if (match) return decodeURIComponent(match[1]);
+  return null;
+}
+
+/**
+ * Upload a local image file to Supabase Storage and return the storage
+ * path (e.g. "userId/123_abc.jpg").
  *
- * Does nothing and returns the same URI unchanged if:
- *   - The URI is already an https URL (already uploaded)
+ * Returns the input unchanged if:
+ *   - It's already a storage path (not file:// and not http(s)://)
  *   - Supabase isn't configured
  *   - The file can't be read
  *
- * This function is safe to call on every sync; re-uploads of the same
- * `file://` path would be wasteful, so the caller should keep a mapping
- * of local URI → remote URL (we persist that mapping as part of the row
- * itself by overwriting `coverImageUri` / `photoUri` with the returned URL
- * before pushing the row to the DB).
+ * For legacy https:// URLs (from before the path-storage change), extracts
+ * and returns the storage path so old rows migrate on next sync.
  */
 export async function uploadLocalImageIfNeeded(
   localUri: string | undefined,
   userId: string
 ): Promise<string | undefined> {
   if (!localUri) return undefined;
+
+  // Legacy https:// URL — extract the storage path
   if (localUri.startsWith("http://") || localUri.startsWith("https://")) {
-    return localUri; // already remote
+    const extracted = extractPathFromUrl(localUri);
+    return extracted ?? localUri; // fallback to URL if extraction fails
   }
+
+  // Already a storage path (not file://, not http) — pass through
+  if (!localUri.startsWith("file://")) {
+    return localUri;
+  }
+
   const supabase = getSupabase();
   if (!supabase) return localUri;
 
@@ -65,21 +86,63 @@ export async function uploadLocalImageIfNeeded(
       return localUri;
     }
 
-    // Bucket is private — use a long-lived signed URL (7 days).
-    // The URL will be persisted in the row; on next sync it's already https
-    // and won't be re-uploaded.
-    const { data: signed, error: signErr } = await supabase.storage
-      .from("photos")
-      .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 days
-    if (signErr || !signed?.signedUrl) {
-      console.warn("photo sign failed", signErr?.message);
-      return localUri;
-    }
-    return signed.signedUrl;
+    // Return the storage path — callers persist this, not a URL
+    return path;
   } catch (err) {
     console.warn("photo upload threw", err);
     return localUri;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Signed URL resolution for rendering
+// ---------------------------------------------------------------------------
+
+// In-memory cache: path → { url, expiresAt }
+const _signedCache = new Map<string, { url: string; expiresAt: number }>();
+const SIGN_TTL_SECONDS = 60;
+const CACHE_TTL_MS = 45_000; // refresh before the 60s URL expires
+
+/**
+ * Resolve a stored photo reference to a renderable URL.
+ * - undefined → undefined
+ * - file:// → passed through (local image)
+ * - http(s):// → passed through (legacy URL or external)
+ * - Otherwise treated as a storage path → signed URL (60s TTL, cached 45s)
+ */
+export async function resolvePhotoUri(
+  stored: string | undefined
+): Promise<string | undefined> {
+  if (!stored) return undefined;
+  if (stored.startsWith("file://")) return stored;
+  if (stored.startsWith("http://") || stored.startsWith("https://")) {
+    return stored;
+  }
+
+  // It's a storage path — check cache
+  const cached = _signedCache.get(stored);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.url;
+  }
+
+  const supabase = getSupabase();
+  if (!supabase) return undefined;
+
+  const { data, error } = await supabase.storage
+    .from("photos")
+    .createSignedUrl(stored, SIGN_TTL_SECONDS);
+
+  if (error || !data?.signedUrl) {
+    console.warn("resolvePhotoUri sign failed", error?.message);
+    return undefined;
+  }
+
+  _signedCache.set(stored, {
+    url: data.signedUrl,
+    expiresAt: Date.now() + CACHE_TTL_MS,
+  });
+
+  return data.signedUrl;
 }
 
 /**

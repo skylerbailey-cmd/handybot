@@ -177,7 +177,7 @@ CREATE POLICY hi_select ON public.household_invites FOR SELECT
     -- Inviter can see their invites
     invited_by IN (SELECT public.authed_user_ids())
     -- Invitee matched by email can see invites addressed to them
-    OR email = (SELECT email FROM auth.users WHERE id = auth.uid())
+    OR email = (auth.jwt() ->> 'email')
   );
 
 CREATE POLICY hi_insert ON public.household_invites FOR INSERT
@@ -194,10 +194,10 @@ CREATE POLICY hi_update ON public.household_invites FOR UPDATE
   TO authenticated
   USING (
     -- Only the matching invitee can accept
-    email = (SELECT email FROM auth.users WHERE id = auth.uid())
+    email = (auth.jwt() ->> 'email')
   )
   WITH CHECK (
-    email = (SELECT email FROM auth.users WHERE id = auth.uid())
+    email = (auth.jwt() ->> 'email')
   );
 
 CREATE POLICY hi_delete ON public.household_invites FOR DELETE

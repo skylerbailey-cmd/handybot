@@ -28,6 +28,7 @@ import {
   radius,
   spacing,
 } from "@/lib/theme";
+import { usePhotoUri } from "@/hooks/usePhotoUri";
 import type { Issue, Reminder } from "@/lib/types";
 
 export default function RepairScreen() {
@@ -327,12 +328,7 @@ export default function RepairScreen() {
                     })}
                   </Text>
                   <View style={styles.timelineRow}>
-                    {issue.coverImageUri && (
-                      <Image
-                        source={{ uri: issue.coverImageUri }}
-                        style={styles.timelineThumb}
-                      />
-                    )}
+                    <TimelineThumb uri={issue.coverImageUri} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.timelineTitle2} numberOfLines={1}>
                         {issue.title}
@@ -545,6 +541,17 @@ function StatBox({
       </Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
+  );
+}
+
+function TimelineThumb({ uri }: { uri?: string }) {
+  const resolved = usePhotoUri(uri);
+  if (!resolved) return null;
+  return (
+    <Image
+      source={{ uri: resolved }}
+      style={styles.timelineThumb}
+    />
   );
 }
 

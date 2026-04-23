@@ -31,6 +31,7 @@ import { addCustomRoom, loadRoomLabels } from "@/lib/rooms";
 import { generateId } from "@/lib/storage";
 import { colors, radius, spacing } from "@/lib/theme";
 import type { HomeItem, ItemCondition } from "@/lib/types";
+import { usePhotoUri } from "@/hooks/usePhotoUri";
 import { cacheRegistrationUrl, getRegistrationUrl, openRegistrationPage } from "@/lib/warrantyRegistry";
 
 const CONDITIONS: Array<{ value: ItemCondition; label: string }> = [
@@ -85,6 +86,10 @@ export default function InventoryEditScreen() {
   const [analyzingWarranty, setAnalyzingWarranty] = useState(false);
   const [warrantyRegistered, setWarrantyRegistered] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+
+  const resolvedPhoto = usePhotoUri(photoUri);
+  const resolvedWarrantyPhoto = usePhotoUri(warrantyPhotoUri);
+  const resolvedReceiptPhoto = usePhotoUri(receiptPhotoUri);
 
   // Animated analyzing messages
   const ANALYZING_MESSAGES = [
@@ -498,10 +503,10 @@ export default function InventoryEditScreen() {
             </Text>
 
             {/* Item photo */}
-            {photoUri && !photoFailed ? (
+            {resolvedPhoto && !photoFailed ? (
               <Pressable onPress={handleTakePhoto} disabled={analyzing}>
                 <Image
-                  source={{ uri: photoUri }}
+                  source={{ uri: resolvedPhoto }}
                   style={styles.photo}
                   onError={() => setPhotoFailed(true)}
                 />
@@ -521,10 +526,10 @@ export default function InventoryEditScreen() {
             )}
 
             {/* Warranty photo */}
-            {warrantyPhotoUri && !warrantyPhotoFailed ? (
+            {resolvedWarrantyPhoto && !warrantyPhotoFailed ? (
               <Pressable onPress={handleUploadWarranty} disabled={analyzing}>
                 <Image
-                  source={{ uri: warrantyPhotoUri }}
+                  source={{ uri: resolvedWarrantyPhoto }}
                   style={styles.warrantyPhoto}
                   onError={() => setWarrantyPhotoFailed(true)}
                 />
@@ -544,10 +549,10 @@ export default function InventoryEditScreen() {
             )}
 
             {/* Receipt photo */}
-            {receiptPhotoUri && !receiptPhotoFailed ? (
+            {resolvedReceiptPhoto && !receiptPhotoFailed ? (
               <Pressable onPress={handleUploadReceipt} disabled={analyzing}>
                 <Image
-                  source={{ uri: receiptPhotoUri }}
+                  source={{ uri: resolvedReceiptPhoto }}
                   style={styles.warrantyPhoto}
                   onError={() => setReceiptPhotoFailed(true)}
                 />
