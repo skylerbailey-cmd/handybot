@@ -23,6 +23,18 @@ const MAX_TOKENS_CAP = 4000;
 const FREE_PLAN_LIMIT = 3; // plans per month
 const FREE_ASK_LIMIT = 10; // ask messages per month
 
+// Per-user rate limits (requests per window)
+const RATE_LIMITS = {
+  free:  { perMinute: 5,  perDay: 50 },
+  paid:  { perMinute: 30, perDay: 1000 },
+} as const;
+
+// Allowed models — client cannot switch to expensive models
+const ALLOWED_MODELS = new Set([
+  "claude-sonnet-4-6",
+  "claude-haiku-4-5-20251001",
+]);
+
 // Tool names that count toward the "plan" bucket
 const PLAN_TOOLS = new Set([
   "create_repair_plan",
@@ -30,9 +42,10 @@ const PLAN_TOOLS = new Set([
   "verify_repair_from_photo",
 ]);
 
-// CORS headers
+// CORS headers — scoped to Supabase project URL (mobile apps don't need CORS
+// but the Edge Function runtime requires the headers for preflight)
 const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": Deno.env.get("SUPABASE_URL") ?? "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Authorization, Content-Type, x-client-info",
 };
@@ -261,7 +274,43 @@ Deno.serve(async (req) => {
     }
   }
 
-  // 3b. Check if caller is a minor household member
+  // 3b. Per-user rate limiting (per-minute and per-day)
+  const rateConfig = tier === "free" ? RATE_LIMITS.free : RATE_LIMITS.paid;
+
+  const oneMinuteAgo = new Date(Date.now() - 60_000).toISOString();
+  const { count: minuteCount } = await serviceClient
+    .from("usage_actions")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .gte("created_at", oneMinuteAgo);
+
+  if ((minuteCount ?? 0) >= rateConfig.perMinute) {
+    return jsonResponse(
+      { error: "rate_limited", message: "Too many requests. Please wait a moment and try again." },
+      429
+    );
+  }
+
+  const oneDayAgo = new Date(Date.now() - 86_400_000).toISOString();
+  const { count: dayCount } = await serviceClient
+    .from("usage_actions")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .gte("created_at", oneDayAgo);
+
+  if ((dayCount ?? 0) >= rateConfig.perDay) {
+    return jsonResponse(
+      { error: "rate_limited", message: "You've reached your daily request limit. Try again tomorrow." },
+      429
+    );
+  }
+
+  // 3c. Enforce model allowlist — client cannot switch to expensive models
+  if (body.model && !ALLOWED_MODELS.has(body.model as string)) {
+    body.model = "claude-haiku-4-5-20251001";
+  }
+
+  // 3d. Check if caller is a minor household member
   let isMinor = false;
   let minorParentUserId: string | null = null;
 
@@ -279,14 +328,7 @@ Deno.serve(async (req) => {
     enforceKidsSafePrompt(body);
   }
 
-  // 4. Record the action (before forwarding — so the count is up-to-date
-  //    even if the Anthropic call fails)
-  await serviceClient.from("usage_actions").insert({
-    user_id: user.id,
-    action,
-  });
-
-  // 5. Cap max_tokens and forward to Anthropic
+  // 4. Cap max_tokens and forward to Anthropic
   if (
     typeof body.max_tokens !== "number" ||
     body.max_tokens > MAX_TOKENS_CAP
@@ -305,6 +347,14 @@ Deno.serve(async (req) => {
   });
 
   const responseBody = await anthropicRes.text();
+
+  // 5. Record the action only after a successful call so errors don't burn quota
+  if (anthropicRes.ok) {
+    serviceClient.from("usage_actions").insert({
+      user_id: user.id,
+      action,
+    }).then(() => {}, () => {});
+  }
 
   // 6. Log token usage (best-effort, non-blocking)
   if (anthropicRes.ok) {
