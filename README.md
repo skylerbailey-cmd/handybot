@@ -42,14 +42,14 @@ HandyBot is built with **Expo + React Native**, so it runs on iOS, Android, and 
    npm install
    ```
 
-2. **Add your Anthropic API key.** Copy `.env.example` to `.env` and paste your key:
+2. **Set up environment.** Copy `.env.example` to `.env` and fill in your Supabase project URL and anon key:
 
    ```bash
    cp .env.example .env
-   # edit .env and set EXPO_PUBLIC_ANTHROPIC_API_KEY
+   # edit .env and set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY
    ```
 
-   Get a key at https://console.anthropic.com/.
+   The Anthropic API key lives server-side as a Supabase Edge Function secret — see deployment instructions in `lib/claude.ts`.
 
 3. **Run the app.**
 
@@ -115,17 +115,15 @@ python3 -m http.server 8000
 npx serve .
 ```
 
-## Important: API key security
+## API key security
 
-This MVP uses `EXPO_PUBLIC_ANTHROPIC_API_KEY`, which Expo bundles **into the client JavaScript**. That is only acceptable for local development. If you ship this app to the App Store or Play Store with a production key in the bundle, **anyone can extract it**.
+All Claude API calls are proxied through a Supabase Edge Function (`supabase/functions/claude-proxy/`). The Anthropic API key is stored as a server-side secret and is **never** shipped in the client bundle. The proxy handles authentication, tier-based quotas, rate limiting, and kids-safe mode enforcement.
 
-For a real launch you must:
-
-1. Stand up a tiny backend (Cloudflare Worker, Vercel function, Fly.io service — anything) that holds the Anthropic key as a server-side secret.
-2. Change `lib/claude.ts` so `sendChat` POSTs to your backend instead of directly to `api.anthropic.com`.
-3. Add a bit of per-user auth or rate limiting on that proxy so random strangers can't drain your key.
-
-The rest of the app doesn't need to change — `sendChat` is the only place that knows about the network.
+To set or rotate the key:
+```bash
+supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+supabase functions deploy claude-proxy
+```
 
 ## Notes and limitations
 
