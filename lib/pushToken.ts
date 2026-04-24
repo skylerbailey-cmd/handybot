@@ -82,6 +82,6 @@ export async function registerPushToken(): Promise<void> {
       /* ignore */
     }
   } catch (err) {
-    console.warn("registerPushToken failed", err);
+    console.warn("registerPushToken failed", err instanceof Error ? err.message : String(err));
   }
 }

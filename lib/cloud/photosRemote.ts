@@ -89,7 +89,7 @@ export async function uploadLocalImageIfNeeded(
     // Return the storage path — callers persist this, not a URL
     return path;
   } catch (err) {
-    console.warn("photo upload threw", err);
+    console.warn("photo upload threw", err instanceof Error ? err.message : String(err));
     return localUri;
   }
 }

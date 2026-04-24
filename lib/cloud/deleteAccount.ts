@@ -53,7 +53,7 @@ export async function deleteUserCloudData(_userId?: string): Promise<void> {
       console.warn("deleteUserCloudData storage list failed", listErr.message);
     }
   } catch (err) {
-    console.warn("deleteUserCloudData storage threw", err);
+    console.warn("deleteUserCloudData storage threw", err instanceof Error ? err.message : String(err));
   }
 
   // 2. Delete the user row — ON DELETE CASCADE wipes every child table.

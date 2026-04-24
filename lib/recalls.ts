@@ -341,7 +341,7 @@ export async function checkForRecalls(items: HomeItem[]): Promise<RecallAlert[]>
         }
       }
     } catch (err) {
-      console.warn(`Recall check failed for manufacturer "${make}"`, err);
+      console.warn("Recall check failed", err instanceof Error ? err.message : String(err));
     }
   }
 

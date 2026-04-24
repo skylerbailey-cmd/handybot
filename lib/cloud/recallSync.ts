@@ -75,7 +75,7 @@ export async function syncInventoryForRecalls(
     }
   } catch (err) {
     // Non-blocking — recall sync is best-effort
-    console.warn("syncInventoryForRecalls failed", err);
+    console.warn("syncInventoryForRecalls failed", err instanceof Error ? err.message : String(err));
   }
 }
 

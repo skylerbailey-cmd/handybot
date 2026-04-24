@@ -157,7 +157,7 @@ async function scheduleLocalNotification(
     });
     return id;
   } catch (err) {
-    console.warn("Failed to schedule notification", err);
+    console.warn("Failed to schedule notification", err instanceof Error ? err.message : String(err));
     return undefined;
   }
 }
@@ -489,7 +489,7 @@ export async function scheduleTestNotification(
     });
     return true;
   } catch (err) {
-    console.warn("Failed to schedule test notification", err);
+    console.warn("Failed to schedule test notification", err instanceof Error ? err.message : String(err));
     return false;
   }
 }

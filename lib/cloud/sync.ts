@@ -37,7 +37,7 @@ async function withUser(
     await pushUser(user);
     await fn(user);
   } catch (err) {
-    console.warn("cloud sync failed", err);
+    console.warn("cloud sync failed", err instanceof Error ? err.message : String(err));
   }
 }
 
