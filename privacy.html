@@ -38,7 +38,7 @@
       <header class="legal-header">
         <span class="section-tag">Legal</span>
         <h1>Privacy Policy</h1>
-        <p class="legal-meta">Last updated: April 13, 2026 &middot; Effective date: April 13, 2026</p>
+        <p class="legal-meta">Last updated: April 24, 2026 &middot; Effective date: April 24, 2026</p>
       </header>
 
       <div class="legal-content">
@@ -49,43 +49,62 @@
 
         <h3>2.1 Information You Provide</h3>
         <ul>
-          <li><strong>Account information:</strong> email address (optional), locally-generated user ID, display name.</li>
+          <li><strong>Account information:</strong> email address and password (hashed by Supabase Auth) when you create an account, a user ID, and your display name. You can also use the App anonymously on the free tier without providing an email.</li>
           <li><strong>Home profiles:</strong> home name, optional address, icon, and other home metadata you add.</li>
-          <li><strong>Repair data:</strong> photos of items that need repair, text notes and messages in repair chats, repair plans (including tools, materials, steps, and completion status), difficulty and time estimates, and estimated savings.</li>
-          <li><strong>Home inventory:</strong> photos of appliances, systems, and items; AI-generated condition assessments; age and lifespan estimates; notes and maintenance tips.</li>
-          <li><strong>Maintenance reminders:</strong> reminder titles, frequencies, next-due dates, and completion history.</li>
+          <li><strong>Repair data:</strong> photos of items that need repair, text notes and messages in repair chats, repair plans (including tools, materials, steps, critical-warning callouts, and completion status), difficulty and time estimates, estimated DIY savings, and AI-generated verification results.</li>
+          <li><strong>Home inventory:</strong> photos of appliances, systems, and items; name, category, room, manufacturer (make), model number, serial number, year installed; AI-generated condition assessments; age and lifespan estimates; notes and maintenance tips; and estimated replacement cost.</li>
+          <li><strong>Warranty records:</strong> purchase date, warranty expiration date, warranty provider, coverage notes, registration status, and photos of receipts and warranty cards you choose to upload.</li>
+          <li><strong>Maintenance reminders:</strong> reminder titles, frequencies, next-due dates, completion history, and which prebuilt templates you have enabled.</li>
           <li><strong>Chat content:</strong> photos and text sent in the Ask HandyBot conversational feature.</li>
+          <li><strong>Household &amp; family sharing (Family and Landlord tiers):</strong> the email addresses you use to invite household members, each member's display name, role (owner or member), minor status (if you choose to mark a member as a child), and parent-child relationships.</li>
+          <li><strong>Kids-safe mode data (Family and Landlord tiers):</strong> questions asked by minor accounts that are flagged for parental review, HandyBot's response, the category of the flagged topic, and your acknowledgement of the alert.</li>
+          <li><strong>Activity log (Family and Landlord tiers):</strong> a record of who in your household created, updated, completed, or deleted repairs, reminders, inventory items, and expenses, with timestamps.</li>
+          <li><strong>Vendor contact book (Landlord tier):</strong> names, phone numbers, email addresses, specialty, hourly rates, and notes you add for contractors and service providers. You may optionally import this information from your device's Contacts; we only read entries you explicitly select.</li>
+          <li><strong>Business profile &amp; invoicing (Landlord tier):</strong> business name, owner name, address, phone, email, hourly rate, and tax rate you enter to appear on invoices you generate.</li>
+          <li><strong>Expense and tax data (Landlord tier):</strong> expense amounts, categories (repairs, maintenance, supplies, improvements, auto/travel, other) for Schedule E tracking, dates, vendor names, and receipt photos.</li>
+          <li><strong>Recall tracking (all tiers):</strong> the resolution status (new, contacted, in progress, resolved) and notes you add for each recall alert that matches an item in your inventory.</li>
           <li><strong>Support communications:</strong> when you email support@grnd-lab.com, we retain the content of your message and any attachments.</li>
         </ul>
 
         <h3>2.2 Information Collected Automatically</h3>
         <ul>
           <li>Device type, operating system version, and app version.</li>
+          <li>Expo push notification tokens, when you enable reminders, recall alerts, or family-sharing notifications, so we can deliver push notifications via Apple Push Notification service and Firebase Cloud Messaging. Tokens that have been inactive for 60 days are automatically purged.</li>
           <li>Anonymous usage analytics (screens viewed, features used) &mdash; only if you consent on first launch.</li>
           <li>Crash reports and performance diagnostics.</li>
-          <li>Push notification tokens, when you enable reminders, to deliver local notifications via Apple and Google.</li>
+          <li>Authentication session tokens (for signed-in accounts) to keep you logged in securely.</li>
         </ul>
 
         <h3>2.3 Information from Repair &amp; Inventory Photos</h3>
-        <p>When you use the AI repair diagnosis or home inventory features, your photo is sent to Anthropic's servers for analysis by Claude AI. Photos are processed to identify items, assess conditions, and generate repair plans. Anthropic does not retain photos after analysis completes and does not use API inputs to train its models. If you save a repair or inventory item, the photo is stored locally on your device (not on our servers).</p>
+        <p>When you use the AI repair diagnosis, home inventory analysis, Ask HandyBot chat, or AI verification features, your photo and accompanying text are sent to Anthropic's servers (via our Supabase Edge Function proxy) for analysis by Claude AI. Photos are processed to identify items, assess conditions, generate repair plans, verify completed work, and answer questions. Anthropic does not retain photos after analysis completes and does not use API inputs to train its models. If you save a repair, chat message, or inventory item, the photo is stored locally on your device (free tier) or, on paid tiers with Cloud Backup, also in our Supabase Storage bucket.</p>
 
-        <h3>2.4 Information We Do Not Collect</h3>
-        <p>HandyBot does not collect precise location data, contacts, calendar entries, or files beyond the photos you explicitly choose to upload. We do not sell personal data to advertisers.</p>
+        <h3>2.4 Consumer Product Safety Commission (CPSC) Recall Data</h3>
+        <p>HandyBot periodically queries the publicly available Consumer Product Safety Commission recalls feed (saferproducts.gov) and compares the make and model of items in your inventory against recent recall notices to alert you about recalls that affect your home. We do <strong>not</strong> send any of your personal information, user ID, or inventory data to the CPSC &mdash; the CPSC query is a general, unauthenticated request for recent recalls, and the matching happens on our servers or on your device. Matched recalls are stored with your inventory as "recall alerts" so you can track their resolution status.</p>
+
+        <h3>2.5 Information We Do Not Collect</h3>
+        <p>HandyBot does not collect precise location data (GPS), calendar entries, SMS messages, call logs, microphone audio, or health data. We do not access your contacts unless you explicitly choose to import a contact into your vendor book, and we only read the entries you select. We do not sell personal data to advertisers.</p>
 
         <h2>3. How We Use Your Information</h2>
         <ul>
-          <li>To provide and improve the App's core features, including AI repair diagnosis, home inventory analysis, maintenance reminders, and step-by-step repair walkthroughs.</li>
-          <li>To analyze repair and inventory photos using Claude AI and generate repair plans, condition assessments, and maintenance schedules.</li>
-          <li>To send you local push notifications (e.g., maintenance reminders, scheduled tasks) if you opt in.</li>
+          <li>To provide and improve the App's core features, including AI repair diagnosis, home inventory analysis, warranty tracking, maintenance reminders, AI repair verification, insurance export, and step-by-step repair walkthroughs.</li>
+          <li>To analyze repair, inventory, receipt, and verification photos using Claude AI and generate repair plans, condition assessments, warranty records, and maintenance schedules.</li>
+          <li>To compare your inventory against the CPSC recalls feed and deliver real-time alerts when an item you own is recalled.</li>
+          <li>To send you push notifications for maintenance reminders, warranty expirations, recall alerts, household activity, and &mdash; in Kids-Safe Mode &mdash; parent safety alerts.</li>
+          <li>To enable household sharing on Family and Landlord tiers (invites, shared homes, activity log, Kids-Safe Mode oversight).</li>
+          <li>To generate invoices, tenant reports, and Schedule E expense exports on the Landlord tier.</li>
+          <li>To authenticate you when you sign in and maintain your session securely.</li>
           <li>To process and verify subscription entitlements through the Apple App Store and Google Play Store.</li>
+          <li>To enforce per-tier usage limits, rate limits, and Kids-Safe Mode restrictions in our Edge Function proxy.</li>
           <li>To diagnose bugs and improve app performance.</li>
           <li>To respond to your inquiries and provide customer support.</li>
           <li>To comply with legal obligations and respond to lawful requests.</li>
         </ul>
 
         <h2>4. AI Processing &amp; Automated Decision-Making</h2>
-        <p>The App uses artificial intelligence (Anthropic's Claude Haiku and Sonnet models) to analyze repair photos, identify items in your home inventory, estimate conditions and lifespans, generate step-by-step repair plans, and respond to chat questions. This processing is automated but does not produce legal or similarly significant effects &mdash; it generates repair guidance, inventory assessments, and reminders that you can review, edit, and override before acting on them.</p>
-        <p>You always have the option to manually correct AI outputs, reject suggestions, or not act on any recommendation. AI-generated repair plans, condition assessments, and safety guidance are provided for informational and convenience purposes only and should not be relied upon for safety-critical decisions without independent verification from a qualified licensed professional (see our Terms of Service for full disclaimers).</p>
+        <p>The App uses artificial intelligence (Anthropic's Claude Haiku and Claude Sonnet models) to analyze repair photos, identify items in your home inventory, estimate conditions and lifespans, generate step-by-step repair plans, verify the quality of completed work from your &ldquo;after&rdquo; photos, and respond to chat questions. This processing is automated but does not produce legal or similarly significant effects &mdash; it generates repair guidance, inventory assessments, verifications, and reminders that you can review, edit, and override before acting on them.</p>
+        <p>On the Family and Landlord tiers, Kids-Safe Mode applies additional server-side restrictions to Claude's responses for household members marked as minors: dangerous categories (live electrical, gas, power tools, heights above a safe threshold, harsh chemicals, plumbing behind walls) are blocked and a safe, child-friendly redirection is returned instead. If a minor asks about a restricted topic, a parent notification is created describing the question, Claude's response, and the category so the parent can review it.</p>
+        <p>Insurance export generates an estimated Actual Cash Value (ACV) using a straight-line depreciation model (with a 10% floor) from the age and typical lifespan of your items. This is provided for informational purposes only and is not a substitute for a professional appraisal or an insurance adjuster's determination of loss.</p>
+        <p>You always have the option to manually correct AI outputs, reject suggestions, or not act on any recommendation. AI-generated repair plans, condition assessments, verifications, safety guidance, and valuation estimates are provided for informational and convenience purposes only and should not be relied upon for safety-critical or financial decisions without independent verification from a qualified licensed professional (see our Terms of Service for full disclaimers).</p>
 
         <h2>5. Local-First Data Storage &amp; Optional Cloud Backup</h2>
         <p>HandyBot is local-first by default. On the free tier, the following data is stored <strong>only on your device</strong> and is not transmitted to our servers:</p>
@@ -98,15 +117,18 @@
         </ul>
 
         <h3>5.1 Optional Cloud Backup (paid feature)</h3>
-        <p>If you subscribe to the paid tier and turn on <em>Cloud Backup</em> in Settings, HandyBot will additionally back up the following content to our cloud database (operated by Supabase) so you can access it across multiple devices:</p>
+        <p>If you subscribe to the Pro, Family, or Landlord tier and turn on <em>Cloud Backup</em> in Settings, HandyBot will additionally back up the following content to our cloud database (operated by Supabase) so you can access it across multiple devices:</p>
         <ul>
           <li>Your account profile and the homes you have created;</li>
-          <li>Your repairs (titles, summaries, status, plans, chat messages and the photos attached to them);</li>
+          <li>Your repairs (titles, summaries, status, plans, chat messages and the photos attached to them, and AI verification results);</li>
           <li>Your reminders and which prebuilt maintenance templates you have enabled;</li>
-          <li>Your home inventory items, including item photos.</li>
+          <li>Your home inventory items, including item photos, warranty details, and uploaded receipts and warranty-card images;</li>
+          <li>Your recall alerts and their resolution status;</li>
+          <li>On the Family and Landlord tiers: your household membership, invite records, shared homes, Kids-Safe Mode minor status, parent notifications, and activity log;</li>
+          <li>On the Landlord tier: vendor contacts, your business profile for invoicing, Schedule E expense records, and generated invoice metadata.</li>
         </ul>
         <p>Cloud Backup is <strong>opt-in</strong>. You can turn it off at any time in <em>Settings &rarr; Cloud backup</em>. Turning it off stops new data from being uploaded; data already in the cloud remains available for if you turn the feature back on. To remove cloud-stored data immediately, use the in-app account deletion flow.</p>
-        <p><strong>Always local, never cloud:</strong> the "Ask HandyBot" general Q&amp;A chat is intentionally kept on each device only and is never uploaded, even on the paid tier.</p>
+        <p><strong>Always local, never cloud:</strong> the &ldquo;Ask HandyBot&rdquo; general Q&amp;A chat is intentionally kept on each device only and is never uploaded, even on paid tiers. Flagged questions from minors in Kids-Safe Mode are an exception &mdash; those are delivered to the parent's account so the parent can review them.</p>
 
         <h3>5.2 Deleting your data</h3>
         <p>If you delete the app, your locally-stored data is removed from that device. If you use the in-app <em>Settings &rarr; Delete account</em> flow, HandyBot also permanently deletes your cloud backup (database rows and uploaded photos) when Cloud Backup is on. This action requires a two-step confirmation and cannot be undone or recovered. See our <a href="help/delete-account.html">step-by-step guide to deleting your account</a> for details.</p>
@@ -114,17 +136,26 @@
         <h2>6. Third-Party Services</h2>
         <p>We use the following third-party services to operate the App. Each has its own privacy policy governing how it handles data:</p>
         <ul>
-          <li><strong>Anthropic (Claude AI):</strong> All AI repair photo analysis, home inventory analysis, chat responses, and repair verification are handled exclusively by Anthropic's Claude models (Haiku and Sonnet). Photos and text are sent to Anthropic's API for analysis. Anthropic does not use API inputs to train its models. No other third-party AI services are used. <a href="https://www.anthropic.com/legal/privacy" target="_blank" rel="noopener noreferrer">Anthropic Privacy Policy</a>.</li>
-          <li><strong>Supabase Inc. (Cloud Backup &mdash; paid tier only):</strong> If you turn on Cloud Backup, your repairs, reminders, home inventory, and uploaded photos are stored in a Supabase-hosted PostgreSQL database and Supabase Storage bucket dedicated to HandyBot. Data is encrypted in transit (TLS) and at rest. Row Level Security policies on every table restrict each user to their own rows. Supabase acts as a data processor on our behalf under a Data Processing Addendum. Free-tier users do not have any data sent to Supabase. <a href="https://supabase.com/privacy" target="_blank" rel="noopener noreferrer">Supabase Privacy Policy</a>.</li>
-          <li><strong>Apple App Store:</strong> If you downloaded the App from the Apple App Store, app distribution, in-app purchases, and subscriptions are handled by Apple Inc. under the <a href="https://www.apple.com/legal/privacy/en-ww/" target="_blank" rel="noopener noreferrer">Apple Privacy Policy</a>.</li>
+          <li><strong>Anthropic (Claude AI):</strong> All AI repair photo analysis, home inventory analysis, chat responses, repair verification, and Kids-Safe Mode enforcement are handled exclusively by Anthropic's Claude models (Haiku and Sonnet). Photos and text are sent to Anthropic's API for analysis through our Supabase Edge Function proxy. Your user identity, email, and household information are <strong>not</strong> sent to Anthropic. Anthropic does not use API inputs to train its models. No other third-party AI services are used. <a href="https://www.anthropic.com/legal/privacy" target="_blank" rel="noopener noreferrer">Anthropic Privacy Policy</a>.</li>
+          <li><strong>Supabase Inc. (Authentication, Cloud Backup, and Edge Functions):</strong> Supabase provides our email/password authentication, PostgreSQL database (for Cloud Backup on paid tiers), Supabase Storage (for photo backup on paid tiers), and Edge Functions (for proxying AI calls and checking CPSC recalls). Data is encrypted in transit (TLS) and at rest. Row Level Security policies on every table restrict each user (and on Family/Landlord tiers, each household) to their own rows. Supabase acts as a data processor on our behalf under a Data Processing Addendum. Free-tier users who sign in have their authentication record stored in Supabase; other app data remains on the device unless Cloud Backup is turned on. <a href="https://supabase.com/privacy" target="_blank" rel="noopener noreferrer">Supabase Privacy Policy</a>.</li>
+          <li><strong>Expo (Push Notifications):</strong> We use the Expo Push Notification service operated by 650 Industries, Inc. to deliver push notifications (maintenance reminders, warranty alerts, recall alerts, parent safety alerts, and household activity) to your device. Expo relays messages through Apple Push Notification service and Firebase Cloud Messaging. The push payload includes the notification title, body, and a reference to the item it relates to, but does not include sensitive content beyond what the notification itself displays. <a href="https://expo.dev/privacy" target="_blank" rel="noopener noreferrer">Expo Privacy Policy</a>.</li>
+          <li><strong>U.S. Consumer Product Safety Commission (CPSC):</strong> We query the CPSC's public Recalls API at <a href="https://www.saferproducts.gov" target="_blank" rel="noopener noreferrer">saferproducts.gov</a> on a scheduled basis to retrieve recent product recalls. The CPSC query is general and anonymous &mdash; no user identity, email, or inventory data is sent. Recall matching against your inventory happens inside our systems, not at the CPSC. <a href="https://www.cpsc.gov/Privacy-Policy" target="_blank" rel="noopener noreferrer">CPSC Privacy Policy</a>.</li>
+          <li><strong>Apple App Store:</strong> If you downloaded the App from the Apple App Store, app distribution, in-app purchases, and subscriptions (Free / Pro / Family / Landlord) are handled by Apple Inc. under the <a href="https://www.apple.com/legal/privacy/en-ww/" target="_blank" rel="noopener noreferrer">Apple Privacy Policy</a>.</li>
           <li><strong>Google Play Store:</strong> If you downloaded the App from the Google Play Store, app distribution, in-app purchases, and subscriptions are handled by Google LLC under the <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google Privacy Policy</a>.</li>
         </ul>
-        <p>As HandyBot grows we may introduce additional providers (for example, for authentication, analytics, or backend proxying of AI requests). We will update this policy when material changes occur.</p>
+        <p>As HandyBot grows we may introduce additional providers (for example, analytics, error reporting, or billing providers such as Stripe or RevenueCat). We will update this policy when material changes occur.</p>
 
         <h2>7. Subscriptions &amp; In-App Purchases</h2>
-        <p>The App is free to download and includes core features. The App also offers optional paid subscriptions and one-time in-app purchases to unlock premium features. All transactions are processed by Apple or Google through their respective stores; we do not collect or store your payment card details, banking information, or store account passwords.</p>
-        <h3>7.1 Premium Subscription ("HandyBot Pro")</h3>
-        <p>The App offers an optional auto-renewable subscription that unlocks premium features (for example, unlimited AI repair diagnoses, expanded home inventory, advanced analytics, and priority support). Subscriptions renew automatically unless canceled at least 24 hours before the end of the current billing period. You can manage or cancel your subscription at any time in your Apple ID or Google Play account settings.</p>
+        <p>The App is free to download and includes core features. The App also offers optional paid subscriptions to unlock premium features. All transactions are processed by Apple or Google through their respective stores; we do not collect or store your payment card details, banking information, or store account passwords.</p>
+        <h3>7.1 Subscription Tiers</h3>
+        <p>HandyBot offers four tiers:</p>
+        <ul>
+          <li><strong>Free:</strong> 3 AI repair plans and 10 Ask HandyBot questions per month, 1 home, up to 5 active reminders, and 3 AI-scanned inventory items. CPSC recall alerts and the built-in maintenance templates are included.</li>
+          <li><strong>Pro ($6.99/month or $59.99/year):</strong> unlimited repairs and questions, up to 3 homes, unlimited inventory and reminders, Cloud Backup with cross-device sync, AI photo verification of completed repairs, the Warranty Tracker, Insurance PDF export, and Home export / import.</li>
+          <li><strong>Family ($12.99/month or $109/year):</strong> everything in Pro, plus up to 5 homes, household sharing with up to 4 members, Kids-Safe Mode with parent notifications, and the household activity log.</li>
+          <li><strong>Landlord ($19.99/month or $179/year):</strong> everything in Family, plus unlimited homes, the vendor contact book, the PDF invoice generator, Schedule E tax categorization, manual (non-AI) repair entry, and tenant reports.</li>
+        </ul>
+        <p>Subscriptions auto-renew unless canceled at least 24 hours before the end of the current billing period. You can manage or cancel your subscription at any time in your Apple ID or Google Play account settings.</p>
         <h3>7.2 Information We Collect Related to Purchases</h3>
         <p>When you make a purchase, Apple or Google provides us with a transaction receipt that includes the transaction identifier, product purchased, purchase date, and subscription status (active, expired, or canceled). We use this information solely to verify your entitlements and deliver the features you purchased. We do not receive your payment method details.</p>
 
@@ -214,8 +245,17 @@
         <h3>13.3 Do Not Track Signals</h3>
         <p>Some browsers transmit "Do Not Track" (DNT) signals. There is currently no industry standard for how to respond to DNT signals. Our Website does not currently respond to DNT signals, but you can manage tracking preferences through the Cookie settings link described above or through your browser.</p>
 
-        <h2>14. Children's Privacy</h2>
-        <p>The App is not intended for children under 13 (or under 16 in jurisdictions where GDPR applies, unless the member state has set a lower age of consent). We do not knowingly collect personal information from children under these age thresholds. If we learn that we have collected data from a child below the applicable age threshold, we will delete it promptly. If you believe a child has provided us with personal information, please contact us at <a href="mailto:support@grnd-lab.com">support@grnd-lab.com</a>.</p>
+        <h2>14. Children's Privacy &amp; Kids-Safe Mode</h2>
+        <p>The App is not intended for independent use by children under 13 (or under 16 in jurisdictions where GDPR applies, unless the member state has set a lower age of consent). We do not knowingly collect personal information directly from children under these age thresholds. If we learn that we have collected data from a child below the applicable age threshold outside of the Kids-Safe Mode framework described below, we will delete it promptly.</p>
+        <h3>14.1 Kids-Safe Mode (Family and Landlord tiers)</h3>
+        <p>On the Family and Landlord tiers, a parent or legal guardian who administers a household may invite a minor child to their household and mark the child's account as a minor. In that case:</p>
+        <ul>
+          <li>The parent is the person responsible for providing and consenting on behalf of the child to the information we collect in connection with that account (name, repairs and inventory within the shared homes, and flagged questions). The parent may access, correct, or delete this information at any time from their own account.</li>
+          <li>Claude's responses to the minor are restricted server-side: requests for step-by-step instructions on dangerous topics (live electrical, natural gas, pressurized plumbing behind walls, power tools, roof/ladder work above a safe threshold, and harsh chemicals) are blocked and replaced with a safe, child-friendly redirection that suggests asking a grown-up.</li>
+          <li>When a minor asks a question that is flagged by Kids-Safe Mode, a parent notification record is created containing the question text, Claude's response, and the category. The parent receives a push notification and can review and acknowledge the alert in the App.</li>
+          <li>The minor's own Ask HandyBot chat history is not retained on our servers beyond what is needed to deliver the flagged question to the parent.</li>
+        </ul>
+        <p>If you believe a child has provided us with personal information outside of this framework, please contact us at <a href="mailto:support@grnd-lab.com">support@grnd-lab.com</a> and we will delete it promptly.</p>
 
         <h2>15. International Data Transfers</h2>
         <p>Your data may be processed and stored on servers located in the United States and other countries where our service providers operate (including Anthropic).</p>
