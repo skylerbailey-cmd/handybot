@@ -1283,6 +1283,97 @@ img {
   transform: translateY(0);
 }
 
+/* ===== App Store Download Badges ===== */
+.app-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 24px 0 8px;
+}
+
+.app-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 24px;
+  background: var(--text);
+  color: #ffffff;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  transition: transform var(--transition), box-shadow var(--transition), background var(--transition);
+  min-width: 200px;
+  border: 1px solid var(--text);
+}
+
+.app-badge:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  background: #000000;
+}
+
+.app-badge:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 3px;
+}
+
+.app-badge-icon {
+  font-size: 1.9rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.app-badge-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  text-align: left;
+}
+
+.app-badge-label {
+  font-size: 0.7rem;
+  opacity: 0.85;
+  letter-spacing: 0.02em;
+}
+
+.app-badge-store {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+/* ===== Pricing Cards ===== */
+.pricing-card {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.pricing-price {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--primary);
+  margin: 8px 0 2px;
+  line-height: 1.1;
+}
+
+.pricing-price-unit {
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.pricing-period {
+  font-size: 0.85rem;
+  color: var(--text-lighter);
+  margin: 0 0 12px;
+}
+
+.pricing-disclaimer {
+  text-align: center;
+  margin-top: 28px;
+  font-size: 0.9rem;
+  color: var(--text-lighter);
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 1024px) {
   .hero h1 {
@@ -1442,6 +1533,21 @@ img {
   .contact-form-wrapper {
     padding: 24px;
   }
+
+  .app-badges {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .app-badge {
+    justify-content: center;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .pricing-price {
+    font-size: 1.4rem;
+  }
 }
 
 /* ===== Legal Pages (Privacy / Terms) ===== */
@@ -1516,6 +1622,14 @@ img {
   font-weight: 700;
   margin-top: 28px;
   margin-bottom: 12px;
+  color: var(--text);
+}
+
+.legal-content h4 {
+  font-size: 1.02rem;
+  font-weight: 700;
+  margin-top: 22px;
+  margin-bottom: 8px;
   color: var(--text);
 }
 

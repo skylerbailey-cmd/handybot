@@ -67,35 +67,6 @@ function initAnimations() {
 
 document.addEventListener('DOMContentLoaded', initAnimations);
 
-// ===== Contact Form Handling =====
-const contactForm = document.getElementById('contactForm');
-
-contactForm.addEventListener('submit', function (e) {
-  e.preventDefault();
-
-  // Get form data
-  const formData = new FormData(this);
-  const data = Object.fromEntries(formData.entries());
-
-  // Basic validation
-  if (!data.name || !data.email) {
-    return;
-  }
-
-  // Show success message
-  const formWrapper = document.querySelector('.contact-form-wrapper');
-  formWrapper.innerHTML = `
-    <div class="form-success show">
-      <div class="success-icon">&#10004;</div>
-      <h3>You're on the List!</h3>
-      <p>Thanks for signing up! We'll notify you as soon as HandyBot is ready. You'll be among the first to try it.</p>
-    </div>
-  `;
-
-  // Scroll to the success message
-  formWrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
-});
-
 // ===== Active Navigation Highlight =====
 const sections = document.querySelectorAll('section[id]');
 
