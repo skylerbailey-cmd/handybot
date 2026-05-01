@@ -47,14 +47,14 @@
         </div>
         <div class="app-badges">
           <a href="https://apps.apple.com/app/handybot/id000000000" class="app-badge" aria-label="Download HandyBot on the App Store">
-            <span class="app-badge-icon" aria-hidden="true">&#63743;</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.05 20.28c-.98.95-2.05.94-3.08.6-1.09-.34-2.09-.36-3.24 0-1.44.42-2.2.27-3.06-.6C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
             <span class="app-badge-text">
               <span class="app-badge-label">Download on the</span>
               <span class="app-badge-store">App Store</span>
             </span>
           </a>
           <a href="https://play.google.com/store/apps/details?id=com.handybot.app" class="app-badge" aria-label="Get HandyBot on Google Play">
-            <span class="app-badge-icon" aria-hidden="true">&#9658;</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20.5V3.5c0-.95.7-1.4 1.55-1.05L20.95 11.05c.95.5.95 1.45 0 1.95L4.55 21.55C3.7 21.9 3 21.45 3 20.5z"/></svg>
             <span class="app-badge-text">
               <span class="app-badge-label">Get it on</span>
               <span class="app-badge-store">Google Play</span>
@@ -294,46 +294,221 @@
         </div>
       </div>
 
+      <!-- Feature 5: CPSC Recall Alerts -->
+      <div class="feature-row">
+        <div class="feature-content">
+          <span class="feature-label">Recall Alerts</span>
+          <h3>Know the Moment Your Stuff Gets Recalled</h3>
+          <p>HandyBot checks the U.S. Consumer Product Safety Commission database every day and matches new recalls against the items in your home inventory by make and model. The instant your fridge, crib, or coffee maker is recalled, you get a push notification with the hazard, the remedy, and a link to the manufacturer.</p>
+          <ul class="feature-list">
+            <li><span class="check-icon">&#10003;</span> Daily automated CPSC recall checks</li>
+            <li><span class="check-icon">&#10003;</span> Make- and model-level inventory matching</li>
+            <li><span class="check-icon">&#10003;</span> Push notifications the moment a match is found</li>
+            <li><span class="check-icon">&#10003;</span> Track each recall through New, Contacted, In Progress, Resolved</li>
+            <li><span class="check-icon">&#10003;</span> Hazard and remedy details surfaced inline</li>
+          </ul>
+        </div>
+        <div class="feature-visual">
+          <div class="feature-mockup">
+            <div class="mockup-header">
+              <span class="mockup-dot"></span>
+              <span class="mockup-dot"></span>
+              <span class="mockup-dot"></span>
+              <span class="mockup-title">Recall Alerts</span>
+            </div>
+            <div class="mockup-body">
+              <div class="mockup-alert">
+                <div class="mockup-alert-icon">&#128680;</div>
+                <div class="mockup-alert-info">
+                  <strong>GE Profile Refrigerator</strong>
+                  <span>Model PFE28KYNFS &middot; Fire hazard: ice maker may overheat</span>
+                  <span class="mockup-alert-tag">New &middot; Today</span>
+                </div>
+              </div>
+              <div class="mockup-alert" style="background: #fff7ed; border-left-color: #ea580c;">
+                <div class="mockup-alert-icon">&#9888;</div>
+                <div class="mockup-alert-info">
+                  <strong>Pottery Barn Crib</strong>
+                  <span>Slats may detach &middot; Stop use, contact retailer</span>
+                  <span class="mockup-alert-tag" style="background: #ea580c;">In Progress</span>
+                </div>
+              </div>
+              <div class="mockup-alert" style="background: #f0fdf4; border-left-color: #16a34a;">
+                <div class="mockup-alert-icon">&#10004;</div>
+                <div class="mockup-alert-info">
+                  <strong>Cuisinart Coffee Maker</strong>
+                  <span>Replacement received from manufacturer</span>
+                  <span class="mockup-alert-tag" style="background: #16a34a;">Resolved</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feature 6: Warranty Tracker & Insurance Export -->
+      <div class="feature-row reverse">
+        <div class="feature-content">
+          <span class="feature-label">Warranty &amp; Insurance</span>
+          <h3>Protect Every Item Like a Pro</h3>
+          <p>Snap your receipt, store the warranty, never miss an expiration. When the worst happens, generate a one-tap PDF Schedule of Personal Property &mdash; every item, photo, model, serial number, and estimated replacement value &mdash; ready to email your insurance agent.</p>
+          <ul class="feature-list">
+            <li><span class="check-icon">&#10003;</span> Receipt and warranty card photo storage</li>
+            <li><span class="check-icon">&#10003;</span> Provider, expiration date, and coverage notes</li>
+            <li><span class="check-icon">&#10003;</span> Push alerts before warranties expire</li>
+            <li><span class="check-icon">&#10003;</span> Per-item replacement cost tracking</li>
+            <li><span class="check-icon">&#10003;</span> Insurance PDF export with depreciated ACV per item</li>
+          </ul>
+        </div>
+        <div class="feature-visual">
+          <div class="feature-mockup">
+            <div class="mockup-header">
+              <span class="mockup-dot"></span>
+              <span class="mockup-dot"></span>
+              <span class="mockup-dot"></span>
+              <span class="mockup-title">Warranties</span>
+            </div>
+            <div class="mockup-body">
+              <div class="mockup-warranty">
+                <div class="mockup-warranty-icon">&#128247;</div>
+                <div class="mockup-warranty-info">
+                  <strong>Sony Bravia 65"</strong>
+                  <span>Warranty: Sony &middot; Expires Mar 2028</span>
+                </div>
+                <span class="mockup-warranty-tag active">Active</span>
+              </div>
+              <div class="mockup-warranty">
+                <div class="mockup-warranty-icon">&#10052;</div>
+                <div class="mockup-warranty-info">
+                  <strong>HVAC Compressor</strong>
+                  <span>Warranty: Carrier &middot; Expires in 21 days</span>
+                </div>
+                <span class="mockup-warranty-tag expiring">Expiring</span>
+              </div>
+              <div class="mockup-warranty">
+                <div class="mockup-warranty-icon">&#129529;</div>
+                <div class="mockup-warranty-info">
+                  <strong>KitchenAid Mixer</strong>
+                  <span>Warranty: KitchenAid &middot; Expired Feb 2026</span>
+                </div>
+                <span class="mockup-warranty-tag expired">Expired</span>
+              </div>
+              <div class="mockup-savings" style="background: var(--bg-alt); color: var(--text-light); margin-top: 14px;">Insurance schedule total: <strong>$24,180</strong> (47 items)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feature 7: Family Sharing & Kids-Safe Mode -->
+      <div class="feature-row">
+        <div class="feature-content">
+          <span class="feature-label">Family &amp; Kids-Safe Mode</span>
+          <h3>One Household, Shared Visibility</h3>
+          <p>Invite up to four household members so everyone sees the same homes, repairs, and reminders. Mark a member as a minor and HandyBot blocks dangerous topics &mdash; live electrical, gas, ladders, power tools &mdash; while sending you a parent alert any time a flagged question comes up.</p>
+          <ul class="feature-list">
+            <li><span class="check-icon">&#10003;</span> Up to 4 household members on the Family tier</li>
+            <li><span class="check-icon">&#10003;</span> Activity log: who did what, when</li>
+            <li><span class="check-icon">&#10003;</span> Server-enforced Kids-Safe content filter</li>
+            <li><span class="check-icon">&#10003;</span> Parent push alerts with the question and AI response</li>
+            <li><span class="check-icon">&#10003;</span> Acknowledge or follow up from the parent's account</li>
+          </ul>
+        </div>
+        <div class="feature-visual">
+          <div class="feature-mockup">
+            <div class="mockup-header">
+              <span class="mockup-dot"></span>
+              <span class="mockup-dot"></span>
+              <span class="mockup-dot"></span>
+              <span class="mockup-title">Household</span>
+            </div>
+            <div class="mockup-body">
+              <div class="mockup-member">
+                <div class="mockup-member-avatar">SB</div>
+                <div class="mockup-member-info">
+                  <strong>Skyler (you)</strong>
+                  <span>Owner &middot; All homes</span>
+                </div>
+                <span class="mockup-member-tag">Owner</span>
+              </div>
+              <div class="mockup-member">
+                <div class="mockup-member-avatar" style="background: #6366f1;">JB</div>
+                <div class="mockup-member-info">
+                  <strong>Jordan</strong>
+                  <span>Member &middot; Joined Apr 12</span>
+                </div>
+                <span class="mockup-member-tag">Member</span>
+              </div>
+              <div class="mockup-member">
+                <div class="mockup-member-avatar" style="background: #14b8a6;">RB</div>
+                <div class="mockup-member-info">
+                  <strong>Riley (12)</strong>
+                  <span>Kids-Safe Mode on</span>
+                </div>
+                <span class="mockup-member-tag minor">Minor</span>
+              </div>
+              <div class="mockup-alert" style="background: #eef2ff; border-left-color: #6366f1; margin-top: 12px;">
+                <div class="mockup-alert-icon">&#128276;</div>
+                <div class="mockup-alert-info">
+                  <strong>Safety check from HandyBot</strong>
+                  <span>Riley asked about electrical wiring &mdash; tap to review</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feature 8: Landlord Toolkit -->
+      <div class="feature-row reverse">
+        <div class="feature-content">
+          <span class="feature-label">Landlord Toolkit</span>
+          <h3>Built for Property Owners</h3>
+          <p>Manage unlimited rental properties, log every tenant repair (with or without AI), generate professional PDF invoices with labor and materials, and tag every expense for Schedule E so tax season takes minutes, not weekends.</p>
+          <ul class="feature-list">
+            <li><span class="check-icon">&#10003;</span> Unlimited homes / properties</li>
+            <li><span class="check-icon">&#10003;</span> Vendor contact book with specialties and hourly rates</li>
+            <li><span class="check-icon">&#10003;</span> One-tap PDF invoices with labor, materials, and tax</li>
+            <li><span class="check-icon">&#10003;</span> Schedule E expense categorization and export</li>
+            <li><span class="check-icon">&#10003;</span> Manual repair entry for tenant-reported work</li>
+            <li><span class="check-icon">&#10003;</span> Tenant reports for documentation</li>
+          </ul>
+        </div>
+        <div class="feature-visual">
+          <div class="feature-mockup">
+            <div class="mockup-header">
+              <span class="mockup-dot"></span>
+              <span class="mockup-dot"></span>
+              <span class="mockup-dot"></span>
+              <span class="mockup-title">Invoice &middot; Apr 2026</span>
+            </div>
+            <div class="mockup-body">
+              <div class="mockup-plan-header">
+                <strong>Unit 4B &middot; Faucet repair</strong>
+                <div class="mockup-badges">
+                  <span class="difficulty-badge medium">Schedule E</span>
+                </div>
+              </div>
+              <div class="mockup-invoice-row"><span>Labor &middot; 1.5 hrs @ $85</span><span>$127.50</span></div>
+              <div class="mockup-invoice-row"><span>Cartridge &amp; O-rings</span><span>$24.00</span></div>
+              <div class="mockup-invoice-row"><span>Plumber's tape</span><span>$3.50</span></div>
+              <div class="mockup-invoice-row"><span>Tax (7%)</span><span>$10.85</span></div>
+              <div class="mockup-invoice-total"><span>Total</span><span>$165.85</span></div>
+              <div class="mockup-savings" style="background: var(--bg-alt); color: var(--text-light); margin-top: 14px;">YTD Schedule E (Repairs): <strong>$3,847</strong> across 4 properties</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Additional Features Grid -->
       <div class="section-header" style="margin-top: 80px;">
         <span class="section-tag">And More</span>
-        <h2>Everything You Need to Maintain Your Home</h2>
+        <h2>Everything Else You Get</h2>
       </div>
       <div class="features-grid">
         <div class="feature-card">
           <div class="service-icon">&#128248;</div>
           <h3>AI Repair Verification</h3>
-          <p>Upload a photo of your finished work. HandyBot's AI verifies the repair quality and confirms it's done right &mdash; or suggests fix-up steps before you close it out.</p>
-        </div>
-        <div class="feature-card">
-          <div class="service-icon">&#128220;</div>
-          <h3>Warranty Tracker</h3>
-          <p>Snap a photo of your receipt. HandyBot stores the purchase date, warranty provider, expiration, and coverage notes &mdash; and alerts you before warranties expire.</p>
-        </div>
-        <div class="feature-card">
-          <div class="service-icon">&#128680;</div>
-          <h3>CPSC Recall Alerts</h3>
-          <p>HandyBot checks the Consumer Product Safety Commission daily and matches recalls against your inventory by make and model. You get a push notification the moment your fridge, crib, or coffee maker is recalled.</p>
-        </div>
-        <div class="feature-card">
-          <div class="service-icon">&#128179;</div>
-          <h3>Insurance Export</h3>
-          <p>One-tap PDF of your Schedule of Personal Property &mdash; every item, photo, make/model, serial number, and estimated replacement value. Send it to your insurance agent before disaster strikes.</p>
-        </div>
-        <div class="feature-card">
-          <div class="service-icon">&#128106;</div>
-          <h3>Family Sharing</h3>
-          <p>Invite up to four household members. Everyone sees the same homes, repairs, and reminders &mdash; and an activity log shows who fixed what and when.</p>
-        </div>
-        <div class="feature-card">
-          <div class="service-icon">&#129489;&#8205;&#127867;</div>
-          <h3>Kids-Safe Mode</h3>
-          <p>Let kids ask HandyBot questions safely. Dangerous topics (live electrical, gas, ladders) are blocked, and parents get a notification to review anything flagged.</p>
-        </div>
-        <div class="feature-card">
-          <div class="service-icon">&#127970;</div>
-          <h3>Landlord Tools</h3>
-          <p>Built for rental owners: unlimited homes, a vendor contact book, PDF invoice generator with labor and materials, and Schedule E expense categorization for tax season.</p>
+          <p>Upload a photo of your finished work. HandyBot's AI verifies the quality and confirms it's done right &mdash; or suggests fix-up steps before you close it out.</p>
         </div>
         <div class="feature-card">
           <div class="service-icon">&#9729;</div>
@@ -344,6 +519,36 @@
           <div class="service-icon">&#9888;</div>
           <h3>Safety-First Risk Flags</h3>
           <p>Every plan is screened for eight hazard categories &mdash; electrical, gas, plumbing, structural, height, chemical, fire, sharps. When work crosses the line, HandyBot tells you to call a pro.</p>
+        </div>
+        <div class="feature-card">
+          <div class="service-icon">&#128229;</div>
+          <h3>Mid-Repair Plan Updates</h3>
+          <p>Send a follow-up photo and Claude can propose new steps, tools, or revised time estimates with one-tap "Add to plan" cards &mdash; without losing your existing progress.</p>
+        </div>
+        <div class="feature-card">
+          <div class="service-icon">&#128260;</div>
+          <h3>Regenerate Plan</h3>
+          <p>Don't love the first plan? Tap regenerate and HandyBot rebuilds it from your original photo with a fresh perspective.</p>
+        </div>
+        <div class="feature-card">
+          <div class="service-icon">&#128203;</div>
+          <h3>Repair History</h3>
+          <p>Full timeline of every repair with photos, difficulty, time spent, and money saved. Lifetime savings tally on your home screen.</p>
+        </div>
+        <div class="feature-card">
+          <div class="service-icon">&#128176;</div>
+          <h3>Material Pricing</h3>
+          <p>Every plan estimates the cost of every tool and material so you can budget accurately before heading to the hardware store.</p>
+        </div>
+        <div class="feature-card">
+          <div class="service-icon">&#127968;</div>
+          <h3>Multi-Home Support</h3>
+          <p>Manage every property you own &mdash; main residence, vacation home, rentals &mdash; each with its own inventory, reminders, and chat history.</p>
+        </div>
+        <div class="feature-card">
+          <div class="service-icon">&#128241;</div>
+          <h3>Activity Feed</h3>
+          <p>See every action across your household at a glance: who completed which repair, who added an item, who toggled a reminder.</p>
         </div>
       </div>
     </div>
@@ -509,14 +714,14 @@
         <p>Download HandyBot free on iOS or Android. Start your first repair in under a minute &mdash; no credit card required.</p>
         <div class="app-badges">
           <a href="https://apps.apple.com/app/handybot/id000000000" class="app-badge" aria-label="Download HandyBot on the App Store">
-            <span class="app-badge-icon" aria-hidden="true">&#63743;</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.05 20.28c-.98.95-2.05.94-3.08.6-1.09-.34-2.09-.36-3.24 0-1.44.42-2.2.27-3.06-.6C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
             <span class="app-badge-text">
               <span class="app-badge-label">Download on the</span>
               <span class="app-badge-store">App Store</span>
             </span>
           </a>
           <a href="https://play.google.com/store/apps/details?id=com.handybot.app" class="app-badge" aria-label="Get HandyBot on Google Play">
-            <span class="app-badge-icon" aria-hidden="true">&#9658;</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20.5V3.5c0-.95.7-1.4 1.55-1.05L20.95 11.05c.95.5.95 1.45 0 1.95L4.55 21.55C3.7 21.9 3 21.45 3 20.5z"/></svg>
             <span class="app-badge-text">
               <span class="app-badge-label">Get it on</span>
               <span class="app-badge-store">Google Play</span>
